@@ -31,3 +31,6 @@ yarn-error.log*
 # OS
 .DS_Store
 Thumbs.db
+
+# Claude Code 로컬 설정
+.claude/
