@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import Header from '@/components/common/Header';
@@ -10,14 +10,25 @@ import ProfileForm from '@/components/profile/ProfileForm';
 export default function ProfilePage() {
   const { user, isGuest, loading } = useAuth();
   const router = useRouter();
+  const [profileData, setProfileData] = useState(null);
+  const [isFetching, setIsFetching] = useState(false);
 
   useEffect(() => {
     if (!loading && !user && !isGuest) {
       router.push('/login');
+      return;
+    }
+    if (user) {
+      setIsFetching(true);
+      import('@/utils/api')
+        .then(({ profileAPI }) => profileAPI.get())
+        .then((res) => setProfileData(res.data))
+        .catch(() => {})
+        .finally(() => setIsFetching(false));
     }
   }, [loading, user, isGuest, router]);
 
-  if (loading) {
+  if (loading || isFetching) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="w-8 h-8 rounded-full border-2 border-rose-400 border-t-transparent animate-spin" />
@@ -40,7 +51,7 @@ export default function ProfilePage() {
           </p>
         </div>
 
-        <ProfileForm isSetup={false} />
+        <ProfileForm isSetup={false} initialData={profileData} />
       </main>
     </>
   );

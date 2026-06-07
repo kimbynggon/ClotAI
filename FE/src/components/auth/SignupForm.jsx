@@ -26,7 +26,7 @@ function SignupFields({ onSubmit, isLoading, serverError, continueAsGuest }) {
   return (
     <div className="auth-card animate-slide-up">
       <div className="px-8 pt-10 pb-6">
-        <Link href="/" className="text-2xl font-bold tracking-tight block mb-8">
+        <Link href="/" className="text-2xl font-bold tracking-tight block mb-8 hover:opacity-70 transition-opacity" title="홈으로">
           Clot<span className="text-rose-500">AI</span>
         </Link>
         <h1 className="text-2xl font-bold text-zinc-900">시작해볼까요</h1>
@@ -48,6 +48,26 @@ function SignupFields({ onSubmit, isLoading, serverError, continueAsGuest }) {
             })}
           />
           {errors.name && <p className="error-msg">{errors.name.message}</p>}
+        </div>
+
+        {/* 아이디 */}
+        <div>
+          <label className="label">아이디</label>
+          <input
+            type="text"
+            placeholder="영문/숫자/언더스코어, 4~20자"
+            className={`input-field ${errors.user_id ? 'input-error' : ''}`}
+            {...register('user_id', {
+              required: '아이디를 입력해주세요.',
+              minLength: { value: 4, message: '4자 이상 입력해주세요.' },
+              maxLength: { value: 20, message: '20자 이하로 입력해주세요.' },
+              pattern: {
+                value: /^[a-zA-Z0-9_]+$/,
+                message: '영문, 숫자, 언더스코어(_)만 사용 가능합니다.',
+              },
+            })}
+          />
+          {errors.user_id && <p className="error-msg">{errors.user_id.message}</p>}
         </div>
 
         {/* 이메일 */}
@@ -168,7 +188,6 @@ function InlineVerification({ email, onVerified, onBack }) {
   const inputRefs = useRef([]);
   const timerRef = useRef(null);
 
-  // 컴포넌트 마운트 시 첫 입력칸 포커스 + 쿨다운 시작
   useEffect(() => {
     inputRefs.current[0]?.focus();
     startCooldown();
@@ -246,7 +265,7 @@ function InlineVerification({ email, onVerified, onBack }) {
   return (
     <div className="auth-card animate-slide-up">
       <div className="px-8 pt-10 pb-6">
-        <Link href="/" className="text-2xl font-bold tracking-tight block mb-8">
+        <Link href="/" className="text-2xl font-bold tracking-tight block mb-8 hover:opacity-70 transition-opacity" title="홈으로">
           Clot<span className="text-rose-500">AI</span>
         </Link>
 
@@ -265,7 +284,6 @@ function InlineVerification({ email, onVerified, onBack }) {
       </div>
 
       <div className="px-8 pb-8 space-y-5">
-        {/* 코드 입력 */}
         <div className="flex gap-2 justify-center" onPaste={handlePaste}>
           {code.map((digit, idx) => (
             <input
@@ -339,7 +357,7 @@ function SuccessScreen() {
 export default function SignupForm() {
   const { login, continueAsGuest } = useAuth();
   const router = useRouter();
-  const [phase, setPhase] = useState('form');   // 'form' | 'verify' | 'done'
+  const [phase, setPhase] = useState('form');
   const [email, setEmail] = useState('');
   const [serverError, setServerError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -349,15 +367,13 @@ export default function SignupForm() {
     setServerError('');
     try {
       const { authAPI } = await import('@/utils/api');
-      const payload = { email: data.email, password: data.password, name: data.name };
+      const payload = { user_id: data.user_id, email: data.email, password: data.password, name: data.name };
 
       if (EMAIL_VERIFICATION_ENABLED) {
-        // 인증 코드 발송 후 인라인 인증 단계로 전환
         await authAPI.signup(payload);
         setEmail(data.email);
         setPhase('verify');
       } else {
-        // 이메일 인증 없이 바로 로그인
         const res = await authAPI.signup(payload);
         login(res.data.user, res.data.token);
         router.push('/profile');
