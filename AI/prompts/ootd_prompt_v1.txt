@@ -1,0 +1,16 @@
+다음 정보를 바탕으로 오늘의 OOTD를 추천해주세요.
+
+## 사용자 정보
+- 성별: {gender}
+- 키: {height}
+- 몸무게: {weight}
+- 체형: {body_type}
+- 선호 스타일: {style_tags}
+- 선호 색상: {color_tags}
+- 예산: {budget_tier}
+
+## 오늘 날씨
+- 기온: {temperature}°C (체감 {feels_like}°C)
+- 날씨 상태: {weather_description}
+- 계절: {season}
+- 강수 여부: {precipitation_info}
