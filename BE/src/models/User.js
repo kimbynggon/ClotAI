@@ -6,31 +6,36 @@ const User = {
     return rows[0] || null;
   },
 
+  findByUserId: async (user_id) => {
+    const { rows } = await pool.query('SELECT * FROM users WHERE user_id = $1', [user_id]);
+    return rows[0] || null;
+  },
+
   findById: async (id) => {
     const { rows } = await pool.query(
-      'SELECT id, email, name, is_verified, created_at FROM users WHERE id = $1',
+      'SELECT id, user_id, email, name, is_verified, created_at FROM users WHERE id = $1',
       [id]
     );
     return rows[0] || null;
   },
 
-  create: async ({ email, passwordHash, name }) => {
+  create: async ({ user_id, email, passwordHash, name }) => {
     const { rows } = await pool.query(
-      `INSERT INTO users (email, password_hash, name)
-       VALUES ($1, $2, $3)
-       RETURNING id, email, name, is_verified, created_at`,
-      [email, passwordHash, name]
+      `INSERT INTO users (user_id, email, password_hash, name)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, user_id, email, name, is_verified, created_at`,
+      [user_id, email, passwordHash, name]
     );
     return rows[0];
   },
 
-  updateUnverified: async (id, { passwordHash, name }) => {
+  updateUnverified: async (id, { passwordHash, name, user_id }) => {
     const { rows } = await pool.query(
       `UPDATE users
-       SET password_hash = $1, name = $2, updated_at = NOW()
-       WHERE id = $3 AND is_verified = false
-       RETURNING id, email, name, is_verified, created_at`,
-      [passwordHash, name, id]
+       SET password_hash = $1, name = $2, user_id = $3, updated_at = NOW()
+       WHERE id = $4 AND is_verified = false
+       RETURNING id, user_id, email, name, is_verified, created_at`,
+      [passwordHash, name, user_id, id]
     );
     return rows[0] || null;
   },
@@ -39,7 +44,7 @@ const User = {
     const { rows } = await pool.query(
       `UPDATE users SET is_verified = true, updated_at = NOW()
        WHERE email = $1
-       RETURNING id, email, name, is_verified`,
+       RETURNING id, user_id, email, name, is_verified`,
       [email]
     );
     return rows[0] || null;

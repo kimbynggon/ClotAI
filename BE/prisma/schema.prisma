@@ -1,0 +1,55 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  userId       String   @unique @db.VarChar(30) @map("user_id")
+  email        String   @unique @db.VarChar(255)
+  passwordHash String   @db.VarChar(255) @map("password_hash")
+  name         String   @db.VarChar(50)
+  isVerified   Boolean  @default(false) @map("is_verified")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  profile Profile?
+  outfits Outfit[]
+
+  @@map("users")
+}
+
+model Profile {
+  id              Int      @id @default(autoincrement())
+  userId          Int      @unique @map("user_id")
+  gender          String?  @db.VarChar(10)
+  birthYear       Int?     @map("birth_year")
+  height          Float?
+  weight          Float?
+  bodyType        String?  @db.VarChar(30) @map("body_type")
+  styleTags       String[] @map("style_tags")
+  colorTags       String[] @map("color_tags")
+  budgetTier      String?  @db.VarChar(20) @map("budget_tier")
+  profileImageUrl String?  @map("profile_image_url")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+}
+
+model Outfit {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @map("user_id")
+  weatherData Json     @map("weather_data")
+  aiResult    Json     @map("ai_result")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("outfits")
+}

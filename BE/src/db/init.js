@@ -25,6 +25,7 @@ const INIT_CONFIG = {
       sql: `
         CREATE TABLE IF NOT EXISTS users (
           id            SERIAL       PRIMARY KEY,
+          user_id      VARCHAR(30)  UNIQUE,
           email         VARCHAR(255) UNIQUE NOT NULL,
           password_hash VARCHAR(255) NOT NULL,
           name          VARCHAR(50)  NOT NULL,
@@ -100,12 +101,11 @@ const INIT_CONFIG = {
   // ── 마이그레이션 (ALTER TABLE 등 1회성 DDL) ──────────────────────
   // 실행 후 enabled: false 로 변경하거나 주석 처리 권장
   migrations: [
-    // 예시:
-    // {
-    //   id: '2026-06-04_add_profile_image',
-    //   enabled: false,
-    //   sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image TEXT;`,
-    // },
+    {
+      id: '2026-06-06_add_user_id_to_users',
+      enabled: true,
+      sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS user_id VARCHAR(30) UNIQUE;`,
+    },
   ],
 };
 
