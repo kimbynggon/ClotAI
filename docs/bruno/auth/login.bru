@@ -1,0 +1,29 @@
+meta {
+  name: 로그인
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/auth/login
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "user_id": "testuser",
+    "password": "test1234a"
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.success: eq true
+  res.body.data.token: isDefined
+  res.body.data.user.user_id: eq testuser
+}
+
+script:post-response {
+  bru.setVar("authToken", res.body.data.token);
+}

@@ -1,0 +1,22 @@
+meta {
+  name: 날씨 조회 - 도시명
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/weather?city=서울
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.success: eq true
+  res.body.data.temperature: isDefined
+  res.body.data.weatherDescription: isDefined
+  res.body.data.season: isDefined
+}

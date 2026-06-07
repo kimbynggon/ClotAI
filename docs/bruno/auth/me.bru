@@ -1,0 +1,22 @@
+meta {
+  name: 내 정보 조회
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/auth/me
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.success: eq true
+  res.body.data.user_id: isDefined
+  res.body.data.email: isDefined
+  res.body.data.name: isDefined
+}
