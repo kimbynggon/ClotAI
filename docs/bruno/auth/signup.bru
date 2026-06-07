@@ -1,0 +1,32 @@
+meta {
+  name: 회원가입
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/auth/signup
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "user_id": "testuser",
+    "email": "test@clotai.com",
+    "password": "test1234a",
+    "name": "테스트 유저"
+  }
+}
+
+assert {
+  res.status: eq 201
+  res.body.success: eq true
+  res.body.data.token: isDefined
+  res.body.data.user.user_id: eq testuser
+  res.body.data.user.email: eq test@clotai.com
+}
+
+script:post-response {
+  bru.setVar("authToken", res.body.data.token);
+}

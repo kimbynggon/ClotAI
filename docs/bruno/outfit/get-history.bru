@@ -1,0 +1,20 @@
+meta {
+  name: OOTD 추천 이력 조회
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/outfit/history
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.success: eq true
+  res.body.data: isDefined
+}

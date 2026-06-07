@@ -1,0 +1,23 @@
+meta {
+  name: OOTD 추천 상세 조회
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/outfit/1
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.success: eq true
+  res.body.data.id: isDefined
+  res.body.data.outfit: isDefined
+  res.body.data.reason: isDefined
+  res.body.data.weather: isDefined
+}

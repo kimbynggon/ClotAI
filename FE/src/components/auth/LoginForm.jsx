@@ -28,7 +28,7 @@ export default function LoginForm() {
       router.push('/');
     } catch (err) {
       const msg = err.response?.data?.message;
-      setServerError(msg || '이메일 또는 비밀번호를 확인해주세요.');
+      setServerError(msg || '아이디 또는 비밀번호를 확인해주세요.');
     } finally {
       setIsLoading(false);
     }
@@ -43,7 +43,7 @@ export default function LoginForm() {
     <div className="auth-card animate-slide-up">
       {/* 헤더 */}
       <div className="px-8 pt-10 pb-6">
-        <Link href="/" className="text-2xl font-bold tracking-tight block mb-8">
+        <Link href="/" className="text-2xl font-bold tracking-tight block mb-8 hover:opacity-70 transition-opacity" title="홈으로">
           Clot<span className="text-rose-500">AI</span>
         </Link>
         <h1 className="text-2xl font-bold text-zinc-900">다시 만나서 반가워요</h1>
@@ -53,17 +53,16 @@ export default function LoginForm() {
       {/* 폼 */}
       <form onSubmit={handleSubmit(onSubmit)} className="px-8 pb-6 space-y-4">
         <div>
-          <label className="label">이메일</label>
+          <label className="label">아이디</label>
           <input
-            type="email"
-            placeholder="example@email.com"
-            className={`input-field ${errors.email ? 'input-error' : ''}`}
-            {...register('email', {
-              required: '이메일을 입력해주세요.',
-              pattern: { value: /\S+@\S+\.\S+/, message: '올바른 이메일 형식이 아닙니다.' },
+            type="text"
+            placeholder="아이디 입력"
+            className={`input-field ${errors.user_id ? 'input-error' : ''}`}
+            {...register('user_id', {
+              required: '아이디를 입력해주세요.',
             })}
           />
-          {errors.email && <p className="error-msg">{errors.email.message}</p>}
+          {errors.user_id && <p className="error-msg">{errors.user_id.message}</p>}
         </div>
 
         <div>

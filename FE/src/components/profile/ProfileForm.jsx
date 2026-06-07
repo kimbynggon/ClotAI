@@ -42,8 +42,12 @@ export default function ProfileForm({ initialData = null, isSetup = false }) {
   const { user, isGuest, updateUser } = useAuth();
   const router = useRouter();
   const [step, setStep] = useState(0);
-  const [styles, setStyles] = useState(initialData?.preferredStyles || []);
-  const [colors, setColors] = useState(initialData?.preferredColors || []);
+
+  // BE 필드명 기준으로 통일: styleTags, colorTags, budgetTier
+  const [styles, setStyles] = useState(initialData?.styleTags || []);
+  const [colors, setColors] = useState(initialData?.colorTags || []);
+  const [profileImageUrl, setProfileImageUrl] = useState(initialData?.profileImageUrl || null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [serverError, setServerError] = useState('');
 
@@ -59,7 +63,7 @@ export default function ProfileForm({ initialData = null, isSetup = false }) {
       height: initialData?.height || '',
       weight: initialData?.weight || '',
       bodyType: initialData?.bodyType || '',
-      budget: initialData?.budget || 'mid',
+      budgetTier: initialData?.budgetTier || 'mid',
     },
   });
 
@@ -75,8 +79,39 @@ export default function ProfileForm({ initialData = null, isSetup = false }) {
     if (valid) setStep((s) => s + 1);
   };
 
+  const handleImageChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (isGuest) {
+      setProfileImageUrl(URL.createObjectURL(file));
+      return;
+    }
+
+    setIsUploadingImage(true);
+    try {
+      const { profileAPI } = await import('@/utils/api');
+      const res = await profileAPI.uploadImage(file);
+      setProfileImageUrl(res.data.profileImageUrl);
+    } catch {
+      // 이미지 업로드 실패는 조용히 처리
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
   const onSubmit = async (formData) => {
-    const profile = { ...formData, preferredStyles: styles, preferredColors: colors };
+    // BE DTO와 일치하도록 필드명 매핑
+    const profile = {
+      gender: formData.gender,
+      birthYear: Number(formData.birthYear),
+      height: Number(formData.height),
+      weight: Number(formData.weight),
+      bodyType: formData.bodyType,
+      styleTags: styles,
+      colorTags: colors,
+      budgetTier: formData.budgetTier,
+    };
 
     if (isGuest) {
       guestStorage.saveProfile(profile);
@@ -101,6 +136,43 @@ export default function ProfileForm({ initialData = null, isSetup = false }) {
 
   return (
     <div className="max-w-xl mx-auto">
+      {/* 프로필 이미지 */}
+      <div className="flex flex-col items-center mb-8">
+        <div className="relative">
+          {profileImageUrl ? (
+            <img
+              src={profileImageUrl}
+              alt="프로필"
+              className="w-24 h-24 rounded-full object-cover border-2 border-zinc-200"
+            />
+          ) : (
+            <div className="w-24 h-24 rounded-full bg-zinc-100 border-2 border-dashed border-zinc-300 flex items-center justify-center">
+              <span className="text-zinc-400 text-3xl select-none">👤</span>
+            </div>
+          )}
+          <label className="absolute bottom-0 right-0 w-8 h-8 bg-rose-500 hover:bg-rose-600 rounded-full flex items-center justify-center cursor-pointer transition-colors shadow">
+            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={handleImageChange}
+              disabled={isUploadingImage}
+            />
+          </label>
+        </div>
+        {isUploadingImage && (
+          <p className="text-xs text-zinc-400 mt-2">업로드 중...</p>
+        )}
+        {!isUploadingImage && (
+          <p className="text-xs text-zinc-400 mt-2">사진을 클릭해 변경</p>
+        )}
+      </div>
+
       {/* 진행 표시 */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-2">
@@ -126,13 +198,12 @@ export default function ProfileForm({ initialData = null, isSetup = false }) {
       <form onSubmit={handleSubmit(onSubmit)}>
         {/* ── STEP 0: 기본 정보 ── */}
         {step === 0 && (
-          <div className="card p-6 space-y-5 animate-slide-up">
+          <div className="card p-6 space-y-5">
             <div>
               <h2 className="text-xl font-bold text-zinc-900">기본 정보</h2>
               <p className="text-sm text-zinc-500 mt-0.5">체형에 맞는 스타일 추천을 위해 필요해요</p>
             </div>
 
-            {/* 성별 */}
             <div>
               <label className="label">성별</label>
               <div className="grid grid-cols-2 gap-3">
@@ -152,7 +223,6 @@ export default function ProfileForm({ initialData = null, isSetup = false }) {
               {errors.gender && <p className="error-msg">{errors.gender.message}</p>}
             </div>
 
-            {/* 출생연도 */}
             <div>
               <label className="label">출생연도</label>
               <input
@@ -176,7 +246,7 @@ export default function ProfileForm({ initialData = null, isSetup = false }) {
 
         {/* ── STEP 1: 체형 정보 ── */}
         {step === 1 && (
-          <div className="card p-6 space-y-5 animate-slide-up">
+          <div className="card p-6 space-y-5">
             <div>
               <h2 className="text-xl font-bold text-zinc-900">체형 정보</h2>
               <p className="text-sm text-zinc-500 mt-0.5">내 체형에 꼭 맞는 핏을 추천해드릴게요</p>
@@ -213,7 +283,6 @@ export default function ProfileForm({ initialData = null, isSetup = false }) {
               </div>
             </div>
 
-            {/* 체형 유형 */}
             <div>
               <label className="label">체형 유형</label>
               <div className="space-y-2">
@@ -224,7 +293,7 @@ export default function ProfileForm({ initialData = null, isSetup = false }) {
                     <div className="border-2 rounded-xl px-4 py-3 flex items-center justify-between transition-all
                       border-zinc-200 hover:border-zinc-300
                       peer-checked:border-rose-400 peer-checked:bg-rose-50">
-                      <span className="font-medium text-sm text-zinc-800 peer-checked:text-rose-600">{label}</span>
+                      <span className="font-medium text-sm text-zinc-800">{label}</span>
                       <span className="text-xs text-zinc-400">{desc}</span>
                     </div>
                   </label>
@@ -246,13 +315,12 @@ export default function ProfileForm({ initialData = null, isSetup = false }) {
 
         {/* ── STEP 2: 스타일 취향 ── */}
         {step === 2 && (
-          <div className="card p-6 space-y-6 animate-slide-up">
+          <div className="card p-6 space-y-6">
             <div>
               <h2 className="text-xl font-bold text-zinc-900">스타일 취향</h2>
               <p className="text-sm text-zinc-500 mt-0.5">여러 개 선택해도 좋아요</p>
             </div>
 
-            {/* 스타일 */}
             <div>
               <label className="label">선호 스타일 (복수 선택)</label>
               <div className="grid grid-cols-4 gap-2">
@@ -275,7 +343,6 @@ export default function ProfileForm({ initialData = null, isSetup = false }) {
               </div>
             </div>
 
-            {/* 선호 색상 */}
             <div>
               <label className="label">선호 색상 (복수 선택)</label>
               <div className="grid grid-cols-4 gap-2">
@@ -301,7 +368,6 @@ export default function ProfileForm({ initialData = null, isSetup = false }) {
               </div>
             </div>
 
-            {/* 예산 */}
             <div>
               <label className="label">평균 예산</label>
               <div className="grid grid-cols-3 gap-3">
@@ -312,7 +378,7 @@ export default function ProfileForm({ initialData = null, isSetup = false }) {
                 ].map(({ value, label, sub }) => (
                   <label key={value} className="cursor-pointer">
                     <input type="radio" value={value} className="sr-only peer"
-                      {...register('budget')} />
+                      {...register('budgetTier')} />
                     <div className="border-2 rounded-xl py-3 text-center transition-all
                       border-zinc-200 hover:border-zinc-300
                       peer-checked:border-rose-400 peer-checked:bg-rose-50">

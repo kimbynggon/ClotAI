@@ -1,0 +1,25 @@
+meta {
+  name: 프로필 이미지 업로드
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/profile/image
+  body: multipart-form
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+body:multipart-form {
+  image: @file(./test-image.jpg)
+}
+
+assert {
+  res.status: eq 200
+  res.body.success: eq true
+  res.body.data.profileImageUrl: isDefined
+}

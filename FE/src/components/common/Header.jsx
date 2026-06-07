@@ -37,6 +37,9 @@ export default function Header() {
           {(user || isGuest) && (
             <Link href="/recommend" className="btn-ghost text-sm">OOTD 추천</Link>
           )}
+          {user && (
+            <Link href="/history" className="btn-ghost text-sm">이력</Link>
+          )}
         </nav>
 
         <div className="flex items-center gap-2">

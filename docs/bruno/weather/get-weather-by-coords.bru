@@ -1,0 +1,23 @@
+meta {
+  name: 날씨 조회 - 좌표 (서울)
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/weather?lat=37.5665&lon=126.978
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.success: eq true
+  res.body.data.lat: eq 37.5665
+  res.body.data.temperature: isDefined
+  res.body.data.isRaining: isDefined
+  res.body.data.season: isDefined
+}
