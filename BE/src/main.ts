@@ -15,8 +15,11 @@ async function bootstrap() {
     new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: false }),
   );
 
+  const rawOrigin = process.env.CORS_ORIGIN ?? 'http://localhost:3001';
+  const allowedOrigins = rawOrigin.split(',').map((o) => o.trim());
+
   app.enableCors({
-    origin: process.env.CORS_ORIGIN ?? 'http://localhost:3001',
+    origin: allowedOrigins.length === 1 ? allowedOrigins[0] : allowedOrigins,
     credentials: true,
   });
 

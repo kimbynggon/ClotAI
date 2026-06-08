@@ -9,9 +9,12 @@ load_dotenv()
 
 app = FastAPI(title="ClotAI - AI Service", version="1.0.0")
 
+raw_origin = os.getenv("CORS_ORIGIN", "http://localhost:3000")
+allowed_origins = [o.strip() for o in raw_origin.split(",")]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.getenv("CORS_ORIGIN", "http://localhost:3000")],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
