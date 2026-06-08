@@ -33,5 +33,11 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 
+# 업로드 파일 (Render Ephemeral FS - Git 제외)
+uploads/
+
+# 서버 에러 로그
+*.err
+
 # Claude Code 로컬 설정
 .claude/
