@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { Request, Response } from 'express';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { join } from 'path';
@@ -35,7 +36,7 @@ async function bootstrap() {
     .build();
   SwaggerModule.setup('api/docs', app, SwaggerModule.createDocument(app, config));
 
-  app.getHttpAdapter().get('/health', (_req, res) => {
+  app.getHttpAdapter().get('/health', (_req: Request, res: Response) => {
     res.json({ status: 'ok', service: 'clotai-be' });
   });
 
