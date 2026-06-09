@@ -35,6 +35,10 @@ async function bootstrap() {
     .build();
   SwaggerModule.setup('api/docs', app, SwaggerModule.createDocument(app, config));
 
+  app.getHttpAdapter().get('/health', (_req, res) => {
+    res.json({ status: 'ok', service: 'clotai-be' });
+  });
+
   const port = process.env.PORT ?? 3000;
   await app.listen(port);
   console.log(`Server: http://localhost:${port}/api`);
