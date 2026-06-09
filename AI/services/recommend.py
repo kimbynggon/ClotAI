@@ -2,10 +2,10 @@ import json
 import os
 from pathlib import Path
 
-from anthropic import Anthropic
+import google.generativeai as genai
 from schemas.request import RecommendRequest
 
-client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
+genai.configure(api_key=os.environ.get("GOOGLE_API_KEY", ""))
 
 PROMPT_DIR = Path(__file__).parent.parent / "prompts"
 
@@ -73,18 +73,20 @@ def _build_message(req: RecommendRequest) -> str:
 def generate_recommendation(req: RecommendRequest) -> dict:
     system_prompt = _load_prompt("system_prompt.txt")
     user_message = _build_message(req)
-    model = os.environ.get("AI_MODEL", "claude-haiku-4-5-20251001")
+    model_name = os.environ.get("AI_MODEL", "gemini-1.5-flash")
 
-    response = client.messages.create(
-        model=model,
-        max_tokens=1024,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_message}],
+    model = genai.GenerativeModel(
+        model_name,
+        system_instruction=system_prompt,
     )
 
-    raw = response.content[0].text.strip()
+    response = model.generate_content(
+        user_message,
+        generation_config=genai.types.GenerationConfig(max_output_tokens=1024),
+    )
 
-    # 코드블록 제거 (Claude가 ```json ``` 감쌀 경우)
+    raw = response.text.strip()
+
     if raw.startswith("```"):
         raw = raw.split("```")[1]
         if raw.startswith("json"):
