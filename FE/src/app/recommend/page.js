@@ -8,29 +8,57 @@ import Header from '@/components/common/Header';
 import GuestBanner from '@/components/common/GuestBanner';
 import OutfitCard from '@/components/outfit/OutfitCard';
 
-const SAMPLE_RESULT = {
+const SEASON_PRESETS = {
+  spring: {
+    outfit: { top: '화이트 오버사이즈 린넨 셔츠', bottom: '베이지 와이드 슬랙스', outer: null, shoes: '화이트 캔버스 스니커즈', accessory: '라탄 버킷백' },
+    styleKeyword: '캐주얼 미니멀',
+    colorPalette: ['white', 'beige', 'light tan'],
+  },
+  summer: {
+    outfit: { top: '스트라이프 반팔 린넨 셔츠', bottom: '아이보리 반바지', outer: null, shoes: '슬립온 스니커즈', accessory: '패브릭 크로스백' },
+    styleKeyword: '서머 캐주얼',
+    colorPalette: ['ivory', 'navy', 'white'],
+  },
+  autumn: {
+    outfit: { top: '머스타드 니트 스웨터', bottom: '다크 브라운 슬랙스', outer: '카멜 울 블레이저', shoes: '첼시 부츠', accessory: '레더 토트백' },
+    styleKeyword: '오텀 클래식',
+    colorPalette: ['mustard', 'camel', 'dark brown'],
+  },
+  winter: {
+    outfit: { top: '크림 터틀넥 니트', bottom: '차콜 울 슬랙스', outer: '네이비 롱 코트', shoes: '블랙 앵클 부츠', accessory: '울 머플러' },
+    styleKeyword: '모던 윈터',
+    colorPalette: ['cream', 'charcoal', 'navy'],
+  },
+};
+
+const FALLBACK_RESULT = {
   id: 0,
-  outfit: {
-    top: '화이트 오버사이즈 린넨 셔츠',
-    bottom: '베이지 와이드 슬랙스',
-    outer: null,
-    shoes: '화이트 캔버스 스니커즈',
-    accessory: '라탄 버킷백',
-  },
-  reason: '오늘은 기온이 22°C로 쾌적한 봄 날씨입니다. 캐주얼 미니멀 스타일을 선호하시는 분께 린넨 소재의 가벼운 코디를 추천드립니다. 직사각형 체형에 어울리는 와이드 실루엣으로 균형 잡힌 비율을 연출하세요.',
-  styleKeyword: '캐주얼 미니멀',
-  colorPalette: ['white', 'beige', 'light tan'],
-  weather: {
-    city: '서울',
-    temperature: 22,
-    feelsLike: 21,
-    weatherDescription: '맑음',
-    season: 'spring',
-    isRaining: false,
-    isSnowing: false,
-  },
+  outfit: SEASON_PRESETS.spring.outfit,
+  reason: '오늘은 기온이 22°C로 쾌적한 봄 날씨입니다. 회원가입하면 체형·취향에 맞는 나만의 코디를 받을 수 있어요.',
+  styleKeyword: SEASON_PRESETS.spring.styleKeyword,
+  colorPalette: SEASON_PRESETS.spring.colorPalette,
+  weather: { city: '서울', temperature: 22, feelsLike: 21, weatherDescription: '맑음', season: 'spring', isRaining: false, isSnowing: false },
   createdAt: new Date().toISOString(),
 };
+
+function buildPreviewResult(weather) {
+  const season = weather.season ?? 'spring';
+  const preset = SEASON_PRESETS[season] ?? SEASON_PRESETS.spring;
+  const outer = weather.isRaining
+    ? (preset.outfit.outer ?? '방수 바람막이')
+    : preset.outfit.outer;
+  const tempText = `${Math.round(weather.temperature)}°C`;
+  const reason = `오늘 ${weather.city ?? '서울'}은 ${tempText}, ${weather.weatherDescription} 날씨예요. 회원가입하면 체형·취향까지 반영한 나만의 코디를 받을 수 있어요.`;
+  return {
+    id: 0,
+    outfit: { ...preset.outfit, outer },
+    reason,
+    styleKeyword: preset.styleKeyword,
+    colorPalette: preset.colorPalette,
+    weather,
+    createdAt: new Date().toISOString(),
+  };
+}
 
 export default function RecommendPage() {
   const { user, isGuest, loading } = useAuth();
@@ -39,12 +67,25 @@ export default function RecommendPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
+  const [previewResult, setPreviewResult] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   useEffect(() => {
     if (!loading && !user && !isGuest) {
       router.replace('/login');
     }
   }, [loading, user, isGuest, router]);
+
+  useEffect(() => {
+    if (!isGuest) return;
+    setPreviewLoading(true);
+    import('@/utils/api').then(({ weatherAPI }) =>
+      weatherAPI.getByCity('서울')
+        .then(({ data }) => setPreviewResult(buildPreviewResult(data)))
+        .catch(() => setPreviewResult(FALLBACK_RESULT))
+        .finally(() => setPreviewLoading(false))
+    );
+  }, [isGuest]);
 
   const fetchRecommend = async (payload) => {
     setIsLoading(true);
@@ -113,7 +154,13 @@ export default function RecommendPage() {
           </div>
 
           <div className="opacity-50 pointer-events-none select-none">
-            <OutfitCard result={SAMPLE_RESULT} showActions={false} />
+            {previewLoading ? (
+              <div className="flex justify-center py-16">
+                <div className="w-8 h-8 border-2 border-rose-400 border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : (
+              <OutfitCard result={previewResult ?? FALLBACK_RESULT} showActions={false} />
+            )}
           </div>
 
           <div className="mt-6 card p-6 text-center space-y-3">

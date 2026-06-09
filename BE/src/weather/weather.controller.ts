@@ -1,9 +1,8 @@
-import { Controller, Get, Query, UseGuards, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Query, BadRequestException } from '@nestjs/common';
 import {
-  ApiTags, ApiOperation, ApiBearerAuth,
+  ApiTags, ApiOperation,
   ApiResponse, ApiQuery,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { WeatherService } from './weather.service';
 import { WeatherQueryDto } from './dto/weather-query.dto';
 
@@ -29,8 +28,6 @@ const WeatherDataSchema = {
 
 @ApiTags('Weather')
 @Controller('weather')
-@UseGuards(JwtAuthGuard)
-@ApiBearerAuth()
 export class WeatherController {
   constructor(private readonly weatherService: WeatherService) {}
 
