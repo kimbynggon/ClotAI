@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 
-export default function SocialCallbackPage() {
+function SocialCallbackHandler() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { login } = useAuth();
@@ -61,5 +61,20 @@ export default function SocialCallbackPage() {
       <div className="w-8 h-8 border-2 border-rose-500 border-t-transparent rounded-full animate-spin" />
       <p className="text-zinc-500 text-sm">로그인 처리 중...</p>
     </div>
+  );
+}
+
+export default function SocialCallbackPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex flex-col items-center justify-center gap-4">
+          <div className="w-8 h-8 border-2 border-rose-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-zinc-500 text-sm">로그인 처리 중...</p>
+        </div>
+      }
+    >
+      <SocialCallbackHandler />
+    </Suspense>
   );
 }
