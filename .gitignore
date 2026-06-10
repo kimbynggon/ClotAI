@@ -7,6 +7,8 @@ node_modules/
 .env
 .env.local
 .env.*.local
+.env.example
+**/.env.example
 
 # 빌드 결과물
 .next/

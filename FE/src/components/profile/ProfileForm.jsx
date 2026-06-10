@@ -115,7 +115,7 @@ export default function ProfileForm({ initialData = null, isSetup = false }) {
 
     if (isGuest) {
       guestStorage.saveProfile(profile);
-      router.push('/');
+      router.push('/recommend');
       return;
     }
 
@@ -125,7 +125,7 @@ export default function ProfileForm({ initialData = null, isSetup = false }) {
       const { profileAPI } = await import('@/utils/api');
       const res = await profileAPI.update(profile);
       updateUser(res.data);
-      router.push(isSetup ? '/recommend' : '/profile');
+      router.push('/recommend');
     } catch (err) {
       const msg = err.response?.data?.message;
       setServerError(msg || '저장 중 오류가 발생했습니다.');
@@ -401,7 +401,7 @@ export default function ProfileForm({ initialData = null, isSetup = false }) {
                 이전
               </button>
               <button type="submit" className="btn-rose flex-1 py-3.5" disabled={isLoading}>
-                {isLoading ? '저장 중...' : isSetup ? '완료하고 추천 받기' : '저장'}
+                {isLoading ? '저장 중...' : '저장하고 OOTD 추천 받기'}
               </button>
             </div>
           </div>
