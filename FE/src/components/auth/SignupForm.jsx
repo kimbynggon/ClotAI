@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import SocialLoginButtons from './SocialLoginButtons';
 
 const EMAIL_VERIFICATION_ENABLED =
   process.env.NEXT_PUBLIC_ENABLE_EMAIL_VERIFICATION === 'true';
@@ -156,6 +157,16 @@ function SignupFields({ onSubmit, isLoading, serverError, continueAsGuest }) {
             : '회원가입'}
         </button>
       </form>
+
+      <div className="px-8 flex items-center gap-3 mb-4">
+        <div className="flex-1 h-px bg-zinc-100" />
+        <span className="text-xs text-zinc-400">또는 소셜 계정으로 가입</span>
+        <div className="flex-1 h-px bg-zinc-100" />
+      </div>
+
+      <div className="px-8 mb-4">
+        <SocialLoginButtons />
+      </div>
 
       <div className="px-8 flex items-center gap-3 mb-4">
         <div className="flex-1 h-px bg-zinc-100" />

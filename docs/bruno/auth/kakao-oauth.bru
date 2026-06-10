@@ -1,0 +1,64 @@
+meta {
+  name: Kakao OAuth 로그인
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/auth/kakao
+  body: none
+  auth: none
+}
+
+docs {
+  ## Kakao OAuth 로그인 흐름
+
+  OAuth 2.0은 브라우저 리다이렉트 방식이므로 Bruno에서 직접 실행할 수 없습니다.
+  아래 순서로 브라우저에서 테스트하세요.
+
+  ### 전체 흐름
+
+  1. 브라우저에서 아래 URL 접근
+     http://localhost:3000/api/auth/kakao
+
+  2. Kakao 로그인 페이지로 리다이렉트됨
+
+  3. Kakao 계정으로 로그인
+
+  4. 콜백 URL 자동 호출
+     GET /api/auth/kakao/callback?code=...
+
+  5. 서버가 프론트엔드로 리다이렉트
+     http://localhost:3001/auth/social-callback?token=JWT&id=1&user_id=kakao_xxx&name=홍길동&email=user@kakao.com&provider=kakao
+
+  6. 프론트엔드에서 token을 localStorage에 저장 후 사용
+
+  ### 환경변수 확인 (BE/.env)
+
+  KAKAO_DEFAULT_REST_API_KEY=your_kakao_rest_api_key
+  KAKAO_CLIENT_SECRET=your_kakao_client_secret   # 앱 보안 설정에서 활성화한 경우만 입력
+  KAKAO_CALLBACK_URL=http://localhost:3000/api/auth/kakao/callback
+  FRONTEND_URL=http://localhost:3001
+
+  ### Kakao Developers 설정 확인
+
+  - 플랫폼 > Web > 사이트 도메인: http://localhost:3000
+  - 카카오 로그인 > Redirect URI: http://localhost:3000/api/auth/kakao/callback
+  - 동의항목: 닉네임(필수), 카카오계정(이메일)(선택 권장)
+
+  ### 콜백 응답 쿼리 파라미터
+
+  | 파라미터 | 설명 |
+  |----------|------|
+  | token    | JWT 액세스 토큰 |
+  | id       | DB 사용자 ID |
+  | user_id  | kakao_{providerId 앞 12자리} |
+  | name     | Kakao 프로필 닉네임 |
+  | email    | Kakao 계정 이메일 (동의한 경우) |
+  | provider | "kakao" 고정 |
+
+  ### 이메일 없는 경우
+
+  Kakao 이메일 동의를 하지 않은 경우 email은
+  kakao_{providerId}@social.clotai.com 형태의 가상 이메일로 처리됩니다.
+}

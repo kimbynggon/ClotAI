@@ -11,15 +11,19 @@ model User {
   id           Int      @id @default(autoincrement())
   userId       String   @unique @db.VarChar(30) @map("user_id")
   email        String   @unique @db.VarChar(255)
-  passwordHash String   @db.VarChar(255) @map("password_hash")
+  passwordHash String?  @db.VarChar(255) @map("password_hash")
   name         String   @db.VarChar(50)
+  provider     String   @default("local") @db.VarChar(20)
+  providerId   String?  @db.VarChar(255) @map("provider_id")
   isVerified   Boolean  @default(false) @map("is_verified")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  profile Profile?
-  outfits Outfit[]
+  profile   Profile?
+  outfits   Outfit[]
+  favorites Favorite[]
 
+  @@unique([provider, providerId])
   @@map("users")
 }
 
@@ -49,7 +53,21 @@ model Outfit {
   aiResult    Json     @map("ai_result")
   createdAt   DateTime @default(now()) @map("created_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  favorites Favorite[]
 
   @@map("outfits")
+}
+
+model Favorite {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  outfitId  Int      @map("outfit_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  outfit Outfit @relation(fields: [outfitId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, outfitId])
+  @@map("favorites")
 }

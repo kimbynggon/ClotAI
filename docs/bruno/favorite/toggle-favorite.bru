@@ -1,0 +1,21 @@
+meta {
+  name: 즐겨찾기 토글
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/favorite/toggle
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "outfitId": 1
+  }
+}

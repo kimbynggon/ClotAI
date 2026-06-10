@@ -1,5 +1,7 @@
 import {
   BadRequestException,
+  HttpException,
+  HttpStatus,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -24,6 +26,19 @@ export class OutfitService {
     const profile = await this.profileService.findOne(userId);
     if (!profile) {
       throw new BadRequestException('OOTD 추천을 받으려면 먼저 프로필을 등록해주세요.');
+    }
+
+    // 일일 조회 제한 (15회)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayCount = await this.prisma.outfit.count({
+      where: { userId, createdAt: { gte: today } },
+    });
+    if (todayCount >= 15) {
+      throw new HttpException(
+        '오늘의 추천 횟수(15회)를 초과했습니다. 내일 다시 이용해주세요.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
     }
 
     const weather = await this.resolveWeather(dto);

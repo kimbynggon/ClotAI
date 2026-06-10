@@ -6,6 +6,7 @@ import { AuthModule } from './auth/auth.module';
 import { ProfileModule } from './profile/profile.module';
 import { WeatherModule } from './weather/weather.module';
 import { OutfitModule } from './outfit/outfit.module';
+import { FavoriteModule } from './favorite/favorite.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { LoggerInterceptor } from './common/interceptors/logger.interceptor';
 
@@ -17,6 +18,7 @@ import { LoggerInterceptor } from './common/interceptors/logger.interceptor';
     ProfileModule,
     WeatherModule,
     OutfitModule,
+    FavoriteModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: HttpExceptionFilter },

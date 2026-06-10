@@ -1,0 +1,15 @@
+meta {
+  name: 즐겨찾기 목록 조회
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/favorite
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

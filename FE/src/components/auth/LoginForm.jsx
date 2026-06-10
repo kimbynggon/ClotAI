@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import SocialLoginButtons from './SocialLoginButtons';
 
 export default function LoginForm() {
   const { login, continueAsGuest } = useAuth();
@@ -91,6 +92,18 @@ export default function LoginForm() {
           {isLoading ? '로그인 중...' : '로그인'}
         </button>
       </form>
+
+      {/* 구분선 */}
+      <div className="px-8 flex items-center gap-3 mb-4">
+        <div className="flex-1 h-px bg-zinc-100" />
+        <span className="text-xs text-zinc-400">또는</span>
+        <div className="flex-1 h-px bg-zinc-100" />
+      </div>
+
+      {/* 소셜 로그인 */}
+      <div className="px-8 mb-4">
+        <SocialLoginButtons />
+      </div>
 
       {/* 구분선 */}
       <div className="px-8 flex items-center gap-3 mb-4">

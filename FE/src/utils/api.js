@@ -95,6 +95,21 @@ const realOutfitAPI = {
   },
 };
 
+export const favoriteAPI = {
+  toggle: async (outfitId) => {
+    const res = await api.post('/api/favorite/toggle', { outfitId });
+    return { data: res.data.data };
+  },
+  getAll: async () => {
+    const res = await api.get('/api/favorite');
+    return { data: res.data.data };
+  },
+  check: async (outfitId) => {
+    const res = await api.get(`/api/favorite/${outfitId}`);
+    return { data: res.data.data };
+  },
+};
+
 export const authAPI    = USE_MOCK ? mockAuthAPI    : realAuthAPI;
 export const profileAPI = USE_MOCK ? mockProfileAPI : realProfileAPI;
 export const weatherAPI = USE_MOCK ? mockWeatherAPI : realWeatherAPI;

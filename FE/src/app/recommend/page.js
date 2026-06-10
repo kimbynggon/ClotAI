@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
+import { guestStorage, GUEST_DAILY_LIMIT } from '@/utils/guestStorage';
 import Header from '@/components/common/Header';
 import GuestBanner from '@/components/common/GuestBanner';
 import OutfitCard from '@/components/outfit/OutfitCard';
@@ -31,22 +32,10 @@ const SEASON_PRESETS = {
   },
 };
 
-const FALLBACK_RESULT = {
-  id: 0,
-  outfit: SEASON_PRESETS.spring.outfit,
-  reason: '오늘은 기온이 22°C로 쾌적한 봄 날씨입니다. 회원가입하면 체형·취향에 맞는 나만의 코디를 받을 수 있어요.',
-  styleKeyword: SEASON_PRESETS.spring.styleKeyword,
-  colorPalette: SEASON_PRESETS.spring.colorPalette,
-  weather: { city: '서울', temperature: 22, feelsLike: 21, weatherDescription: '맑음', season: 'spring', isRaining: false, isSnowing: false },
-  createdAt: new Date().toISOString(),
-};
-
 function buildPreviewResult(weather) {
   const season = weather.season ?? 'spring';
   const preset = SEASON_PRESETS[season] ?? SEASON_PRESETS.spring;
-  const outer = weather.isRaining
-    ? (preset.outfit.outer ?? '방수 바람막이')
-    : preset.outfit.outer;
+  const outer = weather.isRaining ? (preset.outfit.outer ?? '방수 바람막이') : preset.outfit.outer;
   const tempText = `${Math.round(weather.temperature)}°C`;
   const reason = `오늘 ${weather.city ?? '서울'}은 ${tempText}, ${weather.weatherDescription} 날씨예요. 회원가입하면 체형·취향까지 반영한 나만의 코디를 받을 수 있어요.`;
   return {
@@ -69,6 +58,9 @@ export default function RecommendPage() {
   const [error, setError] = useState('');
   const [previewResult, setPreviewResult] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState(false);
+  const [limitReached, setLimitReached] = useState(false);
+  const [remaining, setRemaining] = useState(GUEST_DAILY_LIMIT);
 
   useEffect(() => {
     if (!loading && !user && !isGuest) {
@@ -78,11 +70,25 @@ export default function RecommendPage() {
 
   useEffect(() => {
     if (!isGuest) return;
+
+    const canView = guestStorage.canPreview();
+    const rem = guestStorage.getRemainingPreviews();
+    setRemaining(rem);
+
+    if (!canView) {
+      setLimitReached(true);
+      return;
+    }
+
     setPreviewLoading(true);
     import('@/utils/api').then(({ weatherAPI }) =>
       weatherAPI.getByCity('서울')
-        .then(({ data }) => setPreviewResult(buildPreviewResult(data)))
-        .catch(() => setPreviewResult(FALLBACK_RESULT))
+        .then(({ data }) => {
+          setPreviewResult(buildPreviewResult(data));
+          guestStorage.incrementPreview();
+          setRemaining(guestStorage.getRemainingPreviews());
+        })
+        .catch(() => setPreviewError(true))
         .finally(() => setPreviewLoading(false))
     );
   }, [isGuest]);
@@ -96,8 +102,13 @@ export default function RecommendPage() {
       const res = await outfitAPI.recommend(payload);
       setResult(res.data);
     } catch (err) {
+      const status = err.response?.status;
       const msg = err.response?.data?.message;
-      setError(msg || '추천 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+      if (status === 429) {
+        setError(msg || '오늘의 추천 횟수(15회)를 초과했습니다. 내일 다시 이용해주세요.');
+      } else {
+        setError(msg || '추천 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -153,15 +164,64 @@ export default function RecommendPage() {
             <p className="text-zinc-500 text-sm">회원가입하면 나만의 체형·취향에 맞는 코디를 받을 수 있어요</p>
           </div>
 
-          <div className="opacity-50 pointer-events-none select-none">
-            {previewLoading ? (
-              <div className="flex justify-center py-16">
-                <div className="w-8 h-8 border-2 border-rose-400 border-t-transparent rounded-full animate-spin" />
+          {/* 조회 제한 안내 */}
+          {!limitReached && remaining < GUEST_DAILY_LIMIT && (
+            <div className="mb-4 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 text-xs text-amber-700">
+              <span>오늘 미리보기 남은 횟수</span>
+              <span className="font-bold">{remaining}회</span>
+            </div>
+          )}
+
+          {/* 조회 제한 초과 */}
+          {limitReached && (
+            <div className="card p-8 text-center space-y-4">
+              <div className="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mx-auto">
+                <svg className="w-7 h-7 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
               </div>
-            ) : (
-              <OutfitCard result={previewResult ?? FALLBACK_RESULT} showActions={false} />
-            )}
-          </div>
+              <div>
+                <p className="font-semibold text-zinc-900 mb-1">오늘 미리보기 횟수를 모두 사용했습니다</p>
+                <p className="text-sm text-zinc-500">게스트는 하루 {GUEST_DAILY_LIMIT}회까지 미리보기가 가능합니다.<br />회원가입하면 제한 없이 이용할 수 있어요.</p>
+              </div>
+            </div>
+          )}
+
+          {/* 날씨 API 오류 */}
+          {previewError && !limitReached && (
+            <div className="card p-8 text-center space-y-4">
+              <div className="w-14 h-14 bg-rose-100 rounded-full flex items-center justify-center mx-auto">
+                <svg className="w-7 h-7 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <p className="font-semibold text-zinc-900 mb-1">날씨 정보를 불러올 수 없습니다</p>
+                <p className="text-sm text-zinc-500">일시적인 오류로 오늘의 OOTD 미리보기를 표시할 수 없습니다.<br />잠시 후 다시 시도하거나 회원가입 후 이용해주세요.</p>
+              </div>
+            </div>
+          )}
+
+          {/* 로딩 */}
+          {previewLoading && !previewError && (
+            <div className="flex justify-center py-16">
+              <div className="w-8 h-8 border-2 border-rose-400 border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
+
+          {/* 미리보기 카드 */}
+          {previewResult && !previewError && !previewLoading && (
+            <div className="relative">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
+                <span className="bg-zinc-800 text-white text-xs font-medium px-3 py-1 rounded-full shadow">
+                  미리보기
+                </span>
+              </div>
+              <OutfitCard result={previewResult} showActions={false} isPreview />
+            </div>
+          )}
 
           <div className="mt-6 card p-6 text-center space-y-3">
             <p className="font-semibold text-zinc-900">나만의 OOTD 추천 받기</p>
@@ -185,7 +245,6 @@ export default function RecommendPage() {
           <p className="text-zinc-500 text-sm">날씨와 취향을 분석해 코디를 추천해드려요</p>
         </div>
 
-        {/* 입력 폼 — 결과가 없을 때만 표시 */}
         {!result && (
           <div className="card p-6 mb-6">
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -201,15 +260,14 @@ export default function RecommendPage() {
                 />
               </div>
 
-              {error && <p className="text-rose-500 text-sm">{error}</p>}
+              {error && (
+                <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-sm text-rose-600">
+                  {error}
+                </div>
+              )}
 
               <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={handleGPS}
-                  disabled={isLoading}
-                  className="btn-secondary flex-1 py-3"
-                >
+                <button type="button" onClick={handleGPS} disabled={isLoading} className="btn-secondary flex-1 py-3">
                   📍 현재 위치
                 </button>
                 <button type="submit" disabled={isLoading} className="btn-rose flex-1 py-3">
@@ -218,9 +276,7 @@ export default function RecommendPage() {
                       <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                       분석 중...
                     </span>
-                  ) : (
-                    '추천 받기'
-                  )}
+                  ) : '추천 받기'}
                 </button>
               </div>
             </form>
@@ -233,9 +289,8 @@ export default function RecommendPage() {
           </div>
         )}
 
-        {/* 추천 결과 */}
         {result && (
-          <OutfitCard result={result} onRetry={() => setResult(null)} />
+          <OutfitCard result={result} onRetry={() => setResult(null)} showFavorite />
         )}
       </main>
     </>
