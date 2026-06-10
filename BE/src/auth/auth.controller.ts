@@ -144,8 +144,14 @@ export class AuthController {
   @ApiResponse({ status: 302, description: '프론트엔드 /auth/social-callback 으로 리다이렉트 (token, id, user_id, name, email, provider 쿼리 파라미터 포함)' })
   @ApiResponse({ status: 401, description: 'Kakao 인증 실패' })
   async kakaoCallback(@Req() req: { user: SocialProfile }, @Res() res: Response) {
-    const result = await this.authService.socialLogin(req.user);
-    this.redirectToFrontend(res, result);
+    try {
+      console.log('[Kakao] req.user:', JSON.stringify(req.user));
+      const result = await this.authService.socialLogin(req.user);
+      this.redirectToFrontend(res, result);
+    } catch (err) {
+      console.error('[Kakao] socialLogin error:', err);
+      throw err;
+    }
   }
 
   private redirectToFrontend(
