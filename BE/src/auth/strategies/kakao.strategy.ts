@@ -36,11 +36,13 @@ export class KakaoStrategy extends PassportStrategy(Strategy, 'kakao') {
   ) {
     const kakaoAccount = profile._json?.kakao_account;
     const email = kakaoAccount?.email;
-    const name =
+    const rawName =
       kakaoAccount?.profile?.nickname ??
       profile.displayName ??
       profile.username ??
       '카카오 사용자';
+    // 카카오 프로필 미설정 계정의 기본값 대체
+    const name = rawName === '미연동 계정' ? '카카오 사용자' : rawName;
     console.log(`[KAKAO] profile received | id=${profile.id} email=${email ?? 'none'} name=${name}`);
     done(null, { provider: 'kakao', providerId: String(profile.id), email, name });
   }

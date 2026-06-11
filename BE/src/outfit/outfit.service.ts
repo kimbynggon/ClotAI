@@ -155,8 +155,15 @@ export class OutfitService {
 
     if (!res.ok) {
       const detail = await res.text().catch(() => '');
-      this.logger.error(`[recommend] AI 서비스 오류 status=${res.status} detail=${detail}`);
-      throw new InternalServerErrorException(`AI 추천 실패: ${detail}`);
+      this.logger.error(`[recommend] AI 서비스 오류 status=${res.status} detail=${detail.slice(0, 300)}`);
+      // 502/503 게이트웨이 에러 또는 HTML 응답은 사용자에게 노출하지 않음
+      const isGatewayError = res.status === 502 || res.status === 503;
+      const isHtmlResponse = detail.trimStart().startsWith('<!');
+      throw new InternalServerErrorException(
+        isGatewayError || isHtmlResponse
+          ? 'AI 서비스가 일시적으로 중단되었습니다. 잠시 후 다시 시도해주세요.'
+          : `AI 추천 실패: ${detail}`,
+      );
     }
 
     return res.json() as Promise<Record<string, unknown>>;

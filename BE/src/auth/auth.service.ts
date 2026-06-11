@@ -69,9 +69,16 @@ export class AuthService {
     });
     if (existing) {
       if (isKakao) console.log(`[KAKAO] user found | id=${existing.id} source=providerId`);
-      const token = this.jwt.sign({ id: existing.id });
-      if (isKakao) console.log(`[KAKAO] jwt issue | userId=${existing.userId}`);
-      return { user: this.toSafe(existing), token };
+      // 최신 닉네임으로 DB 갱신 (이름 변경 반영)
+      const userToReturn =
+        name && existing.name !== name
+          ? await this.prisma.user.update({ where: { id: existing.id }, data: { name } })
+          : existing;
+      if (isKakao && name && existing.name !== name)
+        console.log(`[KAKAO] name updated | ${existing.name} → ${name}`);
+      const token = this.jwt.sign({ id: userToReturn.id });
+      if (isKakao) console.log(`[KAKAO] jwt issue | userId=${userToReturn.userId}`);
+      return { user: this.toSafe(userToReturn), token };
     }
 
     // 이메일로 기존 계정 연동
