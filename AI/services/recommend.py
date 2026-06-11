@@ -1,9 +1,11 @@
 import json
 import logging
 import os
+import time
 from pathlib import Path
 
 import google.generativeai as genai
+from google.api_core.exceptions import ResourceExhausted
 from schemas.request import RecommendRequest
 
 logger = logging.getLogger(__name__)
@@ -92,11 +94,22 @@ def generate_recommendation(req: RecommendRequest) -> dict:
         system_instruction=system_prompt,
     )
 
-    response = model.generate_content(
-        user_message,
-        generation_config=genai.types.GenerationConfig(max_output_tokens=1024),
-        request_options={"timeout": 30},
-    )
+    generation_config = genai.types.GenerationConfig(max_output_tokens=1024)
+
+    for attempt in range(2):
+        try:
+            response = model.generate_content(
+                user_message,
+                generation_config=generation_config,
+                request_options={"timeout": 25},
+            )
+            break
+        except ResourceExhausted:
+            if attempt == 0:
+                logger.warning("[recommend] 429 rate limit — 5초 후 재시도")
+                time.sleep(5)
+            else:
+                raise
 
     raw = response.text.strip()
     logger.info(f"[recommend] Gemini 원본 응답 길이={len(raw)}")
