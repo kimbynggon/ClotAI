@@ -120,9 +120,10 @@ export class WeatherService {
     );
     url.searchParams.set('timezone', 'auto');
 
+    this.logger.log(`[getWeather] fetch 시작 lat=${lat} lon=${lon}`);
     let json: any;
     try {
-      const res = await fetch(url.toString());
+      const res = await fetch(url.toString(), { signal: AbortSignal.timeout(10_000) });
       if (!res.ok) throw new Error(`Open-Meteo ${res.status}`);
       json = await res.json();
     } catch (e) {
@@ -161,15 +162,17 @@ export class WeatherService {
     const query = KO_CITIES[city] ?? city; // 한글 도시명 → 영문 변환
     const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1&language=ko&format=json`;
 
+    this.logger.log(`[geocode] 호출 city=${city} query=${query}`);
     let json: any;
     try {
-      const res = await fetch(url);
+      const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
       if (!res.ok) throw new Error(`Geocoding ${res.status}`);
       json = await res.json();
     } catch (e) {
       this.logger.error(`[geocode] fetch 실패 city=${city} query=${query} err=${e instanceof Error ? e.message : String(e)}`);
       throw new InternalServerErrorException('도시 정보를 가져올 수 없습니다. 잠시 후 다시 시도해주세요.');
     }
+    this.logger.log(`[geocode] 완료 city=${city} results=${json.results?.length ?? 0}`);
 
     if (!json.results?.length) {
       throw new BadRequestException(`"${city}" 도시를 찾을 수 없습니다.`);
