@@ -122,13 +122,29 @@ export class WeatherService {
 
     this.logger.log(`[getWeather] fetch 시작 lat=${lat} lon=${lon}`);
     let json: any;
-    try {
-      const res = await fetch(url.toString(), { signal: AbortSignal.timeout(10_000) });
-      if (!res.ok) throw new Error(`Open-Meteo ${res.status}`);
-      json = await res.json();
-    } catch (e) {
-      this.logger.error(`[getWeather] fetch 실패 err=${e instanceof Error ? e.message : String(e)}`);
-      throw new InternalServerErrorException('날씨 정보를 가져올 수 없습니다. 잠시 후 다시 시도해주세요.');
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const res = await fetch(url.toString(), { signal: AbortSignal.timeout(10_000) });
+        if (res.status === 502 || res.status === 503) {
+          this.logger.warn(`[getWeather] Open-Meteo ${res.status} (attempt ${attempt}/3)`);
+          if (attempt < 3) {
+            await new Promise<void>((r) => setTimeout(r, 2000 * attempt));
+            continue;
+          }
+          throw new Error(`Open-Meteo ${res.status}`);
+        }
+        if (!res.ok) throw new Error(`Open-Meteo ${res.status}`);
+        json = await res.json();
+        break;
+      } catch (e) {
+        if (attempt < 3 && !(e instanceof Error && e.message.includes('Open-Meteo'))) {
+          this.logger.warn(`[getWeather] fetch 에러 (attempt ${attempt}/3) err=${e instanceof Error ? e.message : String(e)}`);
+          await new Promise<void>((r) => setTimeout(r, 2000 * attempt));
+          continue;
+        }
+        this.logger.error(`[getWeather] fetch 실패 err=${e instanceof Error ? e.message : String(e)}`);
+        throw new InternalServerErrorException('날씨 정보를 가져올 수 없습니다. 잠시 후 다시 시도해주세요.');
+      }
     }
 
     const cur = json.current;
