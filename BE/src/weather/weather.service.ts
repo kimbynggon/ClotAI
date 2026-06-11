@@ -51,20 +51,25 @@ const KO_CITIES: Record<string, string> = {
   제주도: 'Jeju', 제주특별자치도: 'Jeju',
 };
 
-// ── WMO 날씨 코드 → 한국어 설명 ─────────────────────────────────
-const WMO: Record<number, string> = {
-  0: '맑음', 1: '대체로 맑음', 2: '구름 조금', 3: '흐림',
-  45: '안개', 48: '안개',
-  51: '이슬비', 53: '이슬비', 55: '이슬비',
-  61: '비', 63: '비', 65: '폭우',
-  71: '눈', 73: '눈', 75: '폭설', 77: '싸락눈',
-  80: '소나기', 81: '소나기', 82: '강한 소나기',
-  85: '눈 소나기', 86: '강한 눈 소나기',
-  95: '뇌우', 96: '우박을 동반한 뇌우', 99: '우박을 동반한 뇌우',
+// ── wttr.in 날씨 코드 → 한국어 설명 ──────────────────────────────
+const WTTR_DESC: Record<number, string> = {
+  113: '맑음', 116: '구름 조금', 119: '흐림', 122: '매우 흐림',
+  143: '안개', 248: '안개', 260: '짙은 안개',
+  176: '가벼운 비', 185: '가벼운 진눈깨비', 200: '뇌우',
+  227: '눈보라', 230: '폭설',
+  263: '이슬비', 266: '이슬비', 281: '진눈깨비', 284: '진눈깨비',
+  293: '가벼운 비', 296: '비', 299: '비', 302: '비', 305: '강한 비', 308: '폭우',
+  311: '진눈깨비', 314: '진눈깨비',
+  317: '가벼운 눈', 320: '눈', 323: '눈', 326: '눈', 329: '강한 눈', 332: '강한 눈',
+  335: '눈보라', 338: '폭설',
+  350: '얼음비', 353: '소나기', 356: '소나기', 359: '강한 소나기',
+  362: '눈비', 365: '눈비', 368: '눈 소나기', 371: '강한 눈 소나기',
+  374: '얼음비', 377: '강한 얼음비',
+  386: '뇌우', 389: '강한 뇌우', 392: '뇌우', 395: '폭설과 뇌우',
 };
 
-const RAIN_CODES = new Set([51, 53, 55, 61, 63, 65, 80, 81, 82]);
-const SNOW_CODES = new Set([71, 73, 75, 77, 85, 86]);
+const RAIN_CODES = new Set([176, 185, 263, 266, 281, 284, 293, 296, 299, 302, 305, 308, 311, 314, 350, 353, 356, 359, 362, 365, 374, 377, 386, 389]);
+const SNOW_CODES = new Set([227, 230, 317, 320, 323, 326, 329, 332, 335, 338, 362, 365, 368, 371, 392, 395]);
 
 function getSeason(month: number): string {
   if (month >= 3 && month <= 5) return 'spring';
@@ -101,7 +106,7 @@ export class WeatherService {
   private readonly cache = new Map<string, CacheEntry>();
   private readonly TTL_MS = 30 * 60 * 1000; // 30분
 
-  // ── 날씨 조회 (캐시 우선) ─────────────────────────────────────
+  // ── 날씨 조회 (캐시 우선) — wttr.in API 사용 ─────────────────
   async getWeather(lat: number, lon: number, city?: string): Promise<WeatherResult> {
     const key = `${lat.toFixed(2)},${lon.toFixed(2)}`;
     const cached = this.cache.get(key);
@@ -111,57 +116,43 @@ export class WeatherService {
       return cached.data;
     }
 
-    const url = new URL('https://api.open-meteo.com/v1/forecast');
-    url.searchParams.set('latitude', String(lat));
-    url.searchParams.set('longitude', String(lon));
-    url.searchParams.set(
-      'current',
-      'temperature_2m,apparent_temperature,precipitation,weathercode,windspeed_10m,relative_humidity_2m',
-    );
-    url.searchParams.set('timezone', 'auto');
-
+    const url = `https://wttr.in/${lat},${lon}?format=j1`;
     this.logger.log(`[getWeather] fetch 시작 lat=${lat} lon=${lon}`);
+
     let json: any;
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      try {
-        const res = await fetch(url.toString(), { signal: AbortSignal.timeout(10_000) });
-        if (res.status === 502 || res.status === 503) {
-          this.logger.warn(`[getWeather] Open-Meteo ${res.status} (attempt ${attempt}/3)`);
-          if (attempt < 3) {
-            await new Promise<void>((r) => setTimeout(r, 2000 * attempt));
-            continue;
-          }
-          throw new Error(`Open-Meteo ${res.status}`);
-        }
-        if (!res.ok) throw new Error(`Open-Meteo ${res.status}`);
-        json = await res.json();
-        break;
-      } catch (e) {
-        if (attempt < 3 && !(e instanceof Error && e.message.includes('Open-Meteo'))) {
-          this.logger.warn(`[getWeather] fetch 에러 (attempt ${attempt}/3) err=${e instanceof Error ? e.message : String(e)}`);
-          await new Promise<void>((r) => setTimeout(r, 2000 * attempt));
-          continue;
-        }
-        this.logger.error(`[getWeather] fetch 실패 err=${e instanceof Error ? e.message : String(e)}`);
-        throw new InternalServerErrorException('날씨 정보를 가져올 수 없습니다. 잠시 후 다시 시도해주세요.');
-      }
+    try {
+      const res = await fetch(url, {
+        signal: AbortSignal.timeout(10_000),
+        headers: { 'Accept': 'application/json' },
+      });
+      if (!res.ok) throw new Error(`wttr.in ${res.status}`);
+      json = await res.json();
+    } catch (e) {
+      this.logger.error(`[getWeather] fetch 실패 err=${e instanceof Error ? e.message : String(e)}`);
+      throw new InternalServerErrorException('날씨 정보를 가져올 수 없습니다. 잠시 후 다시 시도해주세요.');
     }
 
-    const cur = json.current;
-    const code: number = cur.weathercode ?? 0;
+    const cur = json.current_condition?.[0];
+    if (!cur) {
+      this.logger.error('[getWeather] current_condition 없음');
+      throw new InternalServerErrorException('날씨 데이터를 파싱할 수 없습니다.');
+    }
+
+    const code: number = Number(cur.weatherCode ?? 113);
+    const precipMM: number = parseFloat(cur.precipMM ?? '0');
     const month = new Date().getMonth() + 1;
 
     const data: WeatherResult = {
       lat,
       lon,
       city: city ?? null,
-      temperature: Math.round(cur.temperature_2m * 10) / 10,
-      feelsLike: Math.round(cur.apparent_temperature * 10) / 10,
-      precipitation: cur.precipitation ?? 0,
-      humidity: cur.relative_humidity_2m ?? 0,
-      windSpeed: Math.round(cur.windspeed_10m * 10) / 10,
+      temperature: parseFloat(cur.temp_C ?? '0'),
+      feelsLike: parseFloat(cur.FeelsLikeC ?? '0'),
+      precipitation: precipMM,
+      humidity: parseFloat(cur.humidity ?? '0'),
+      windSpeed: parseFloat(cur.windspeedKmph ?? '0'),
       weatherCode: code,
-      weatherDescription: WMO[code] ?? '알 수 없음',
+      weatherDescription: WTTR_DESC[code] ?? '알 수 없음',
       season: getSeason(month),
       isRaining: RAIN_CODES.has(code),
       isSnowing: SNOW_CODES.has(code),
