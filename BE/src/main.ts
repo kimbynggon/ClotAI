@@ -16,7 +16,8 @@ async function bootstrap() {
     new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: false }),
   );
 
-  const rawOrigin = process.env.CORS_ORIGIN ?? 'http://localhost:3001';
+  const rawOrigin =
+    process.env.CORS_ORIGIN ?? 'http://localhost:3001,https://clotai.vercel.app';
   const allowedOrigins = rawOrigin.split(',').map((o) => o.trim());
 
   app.enableCors({

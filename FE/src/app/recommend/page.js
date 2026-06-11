@@ -319,7 +319,7 @@ export default function RecommendPage() {
 
             {isLoading && (
               <p className="text-center text-zinc-400 text-xs mt-4">
-                AI가 분석 중이에요. 처음 실행 시 최대 1분이 걸릴 수 있어요 ✨
+                날씨와 취향을 분석하고 있어요. 잠시만 기다려주세요 ✨
               </p>
             )}
           </div>
