@@ -1,7 +1,7 @@
 import { Injectable, ConflictException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { User } from '@prisma/client';
+import { Prisma, User } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SignupDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
@@ -61,32 +61,58 @@ export class AuthService {
   async socialLogin(dto: SocialLoginDto) {
     const { provider, providerId, email, name } = dto;
 
+    const isKakao = provider === 'kakao';
+
     // 기존 소셜 계정 조회
     const existing = await this.prisma.user.findFirst({
       where: { provider, providerId },
     });
     if (existing) {
-      return { user: this.toSafe(existing), token: this.jwt.sign({ id: existing.id }) };
+      if (isKakao) console.log(`[KAKAO] user found | id=${existing.id} source=providerId`);
+      const token = this.jwt.sign({ id: existing.id });
+      if (isKakao) console.log(`[KAKAO] jwt issue | userId=${existing.userId}`);
+      return { user: this.toSafe(existing), token };
     }
 
     // 이메일로 기존 계정 연동
     const byEmail = email ? await this.prisma.user.findUnique({ where: { email } }) : null;
     if (byEmail) {
+      if (isKakao) console.log(`[KAKAO] user found | id=${byEmail.id} source=email`);
       const updated = await this.prisma.user.update({
         where: { id: byEmail.id },
         data: { provider, providerId, isVerified: true },
       });
-      return { user: this.toSafe(updated), token: this.jwt.sign({ id: updated.id }) };
+      const token = this.jwt.sign({ id: updated.id });
+      if (isKakao) console.log(`[KAKAO] jwt issue | userId=${updated.userId}`);
+      return { user: this.toSafe(updated), token };
     }
 
     // 신규 계정 생성
     const userId = `${provider}_${providerId.slice(0, 12)}`;
     const safeEmail = email ?? `${provider}_${providerId}@social.clotai.com`;
 
-    const user = await this.prisma.user.create({
-      data: { userId, email: safeEmail, name, provider, providerId, isVerified: true },
-    });
-    return { user: this.toSafe(user), token: this.jwt.sign({ id: user.id }) };
+    if (isKakao) console.log(`[KAKAO] user create | userId=${userId} email=${safeEmail}`);
+    let user: User;
+    try {
+      user = await this.prisma.user.create({
+        data: { userId, email: safeEmail, name, provider, providerId, isVerified: true },
+      });
+    } catch (err) {
+      // 동시 요청 등으로 이미 생성된 경우 재조회
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        if (isKakao) console.log(`[KAKAO] user create conflict P2002 — 재조회`);
+        const found = await this.prisma.user.findFirst({ where: { provider, providerId } });
+        if (found) {
+          const token = this.jwt.sign({ id: found.id });
+          if (isKakao) console.log(`[KAKAO] jwt issue | userId=${found.userId} (retry)`);
+          return { user: this.toSafe(found), token };
+        }
+      }
+      throw err;
+    }
+    const token = this.jwt.sign({ id: user.id });
+    if (isKakao) console.log(`[KAKAO] jwt issue | userId=${user.userId}`);
+    return { user: this.toSafe(user), token };
   }
 
   toSafe(user: User) {

@@ -10,6 +10,16 @@ const KO_CITIES: Record<string, string> = {
   제주: 'Jeju', 춘천: 'Chuncheon', 원주: 'Wonju', 강릉: 'Gangneung',
   포항: 'Pohang', 경주: 'Gyeongju', 구미: 'Gumi', 목포: 'Mokpo',
   여수: 'Yeosu', 순천: 'Suncheon',
+  // 광역시/도 단위 (대표 도시로 매핑)
+  강원도: 'Chuncheon', 강원: 'Chuncheon', 강원특별자치도: 'Chuncheon',
+  경기도: 'Suwon', 경기: 'Suwon',
+  충청북도: 'Cheongju', 충북: 'Cheongju',
+  충청남도: 'Cheonan', 충남: 'Cheonan',
+  전라북도: 'Jeonju', 전북: 'Jeonju', 전북특별자치도: 'Jeonju',
+  전라남도: 'Mokpo', 전남: 'Mokpo',
+  경상북도: 'Pohang', 경북: 'Pohang',
+  경상남도: 'Changwon', 경남: 'Changwon',
+  제주도: 'Jeju', 제주특별자치도: 'Jeju',
 };
 
 // ── WMO 날씨 코드 → 한국어 설명 ─────────────────────────────────

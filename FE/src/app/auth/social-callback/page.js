@@ -27,7 +27,8 @@ function SocialCallbackHandler() {
       id: Number(id),
       user_id: userId,
       name,
-      email,
+      // 카카오는 이메일 정책상 제공 불가 — 빈 문자열 그대로 저장
+      email: email || '',
       is_verified: true,
       provider,
     };

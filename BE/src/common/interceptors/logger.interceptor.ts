@@ -1,5 +1,5 @@
 import { Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
-import { Observable, tap } from 'rxjs';
+import { Observable, finalize } from 'rxjs';
 import { Request, Response } from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -12,7 +12,9 @@ export class LoggerInterceptor implements NestInterceptor {
     const start = Date.now();
 
     return next.handle().pipe(
-      tap(() => {
+      // tap()은 @Res() + res.redirect() 사용 시 Observable이 값 없이 complete되어 실행 안 됨
+      // finalize()는 complete/error 모두에서 실행되므로 redirect 응답도 로그 기록 가능
+      finalize(() => {
         const duration = Date.now() - start;
         const log = `[${new Date().toISOString()}] ${req.method} ${req.originalUrl} ${res.statusCode} ${duration}ms\n`;
         this.writeLog(log);
@@ -22,7 +24,8 @@ export class LoggerInterceptor implements NestInterceptor {
 
   private writeLog(log: string) {
     const date = new Date().toISOString().slice(0, 10);
-    const logDir = path.join(process.cwd(), 'log');
+    // __dirname 기준으로 고정: dist/common/interceptors → ../../.. → BE 루트/log
+    const logDir = path.resolve(__dirname, '../../../log');
     if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
     fs.appendFileSync(path.join(logDir, `${date}.log`), log);
   }

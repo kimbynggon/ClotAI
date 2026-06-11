@@ -145,11 +145,11 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Kakao 인증 실패' })
   async kakaoCallback(@Req() req: { user: SocialProfile }, @Res() res: Response) {
     try {
-      console.log('[Kakao] req.user:', JSON.stringify(req.user));
+      console.log(`[KAKAO] callback start | req.user=${JSON.stringify(req.user)}`);
       const result = await this.authService.socialLogin(req.user);
       this.redirectToFrontend(res, result);
     } catch (err) {
-      console.error('[Kakao] socialLogin error:', err);
+      console.error(`[KAKAO ERROR] ${err instanceof Error ? err.message : String(err)}`, err);
       throw err;
     }
   }
@@ -159,12 +159,15 @@ export class AuthController {
     result: { user: ReturnType<AuthService['toSafe']>; token: string },
   ) {
     const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'http://localhost:3001');
+    // 카카오는 이메일 정책 변경으로 이메일을 제공하지 않음
+    // DB의 safeEmail(kakao_xxx@social.clotai.com)은 unique constraint용이므로 FE에 노출하지 않음
+    const displayEmail = result.user.provider === 'kakao' ? '' : result.user.email;
     const params = new URLSearchParams({
       token: result.token,
       id: String(result.user.id),
       user_id: result.user.user_id,
       name: result.user.name,
-      email: result.user.email,
+      email: displayEmail,
       provider: result.user.provider,
     });
     res.redirect(`${frontendUrl}/auth/social-callback?${params.toString()}`);

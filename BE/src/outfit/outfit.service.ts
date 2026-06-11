@@ -4,6 +4,7 @@ import {
   HttpStatus,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -15,6 +16,8 @@ import { RecommendOutfitDto } from './dto/recommend-outfit.dto';
 
 @Injectable()
 export class OutfitService {
+  private readonly logger = new Logger(OutfitService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly weatherService: WeatherService,
@@ -23,8 +26,11 @@ export class OutfitService {
   ) {}
 
   async recommend(userId: number, dto: RecommendOutfitDto) {
+    this.logger.log(`[recommend] 시작 userId=${userId}`);
+
     const profile = await this.profileService.findOne(userId);
     if (!profile) {
+      this.logger.warn(`[recommend] 프로필 없음 userId=${userId}`);
       throw new BadRequestException('OOTD 추천을 받으려면 먼저 프로필을 등록해주세요.');
     }
 
@@ -35,14 +41,20 @@ export class OutfitService {
       where: { userId, createdAt: { gte: today } },
     });
     if (todayCount >= 15) {
+      this.logger.warn(`[recommend] 일일 한도 초과 userId=${userId} count=${todayCount}`);
       throw new HttpException(
         '오늘의 추천 횟수(15회)를 초과했습니다. 내일 다시 이용해주세요.',
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
 
+    this.logger.log(`[recommend] 날씨 조회 시작 city=${dto.city ?? ''} lat=${dto.lat ?? ''}`);
     const weather = await this.resolveWeather(dto);
+    this.logger.log(`[recommend] 날씨 조회 완료 temp=${weather.temperature} season=${weather.season}`);
+
+    this.logger.log(`[recommend] AI 서비스 호출 시작`);
     const aiResult = await this.callAiService(profile, weather);
+    this.logger.log(`[recommend] AI 서비스 응답 완료`);
 
     const outfit = await this.prisma.outfit.create({
       data: {
@@ -134,7 +146,8 @@ export class OutfitService {
         body: JSON.stringify(payload),
         signal: AbortSignal.timeout(30_000),
       });
-    } catch {
+    } catch (err) {
+      this.logger.error(`[recommend] AI 서비스 연결 실패 url=${aiUrl}/recommend`, err instanceof Error ? err.message : String(err));
       throw new InternalServerErrorException(
         'AI 서비스에 연결할 수 없습니다. AI 서버가 실행 중인지 확인해주세요.',
       );
@@ -142,6 +155,7 @@ export class OutfitService {
 
     if (!res.ok) {
       const detail = await res.text().catch(() => '');
+      this.logger.error(`[recommend] AI 서비스 오류 status=${res.status} detail=${detail}`);
       throw new InternalServerErrorException(`AI 추천 실패: ${detail}`);
     }
 

@@ -24,6 +24,7 @@ export class KakaoStrategy extends PassportStrategy(Strategy, 'kakao') {
       clientID: config.get<string>('KAKAO_DEFAULT_REST_API_KEY') ?? '',
       clientSecret: config.get<string>('KAKAO_CLIENT_SECRET') ?? '',
       callbackURL: config.get<string>('KAKAO_CALLBACK_URL') ?? 'http://localhost:3000/api/auth/kakao/callback',
+      scope: ['profile_nickname'],
     });
   }
 
@@ -40,6 +41,7 @@ export class KakaoStrategy extends PassportStrategy(Strategy, 'kakao') {
       profile.displayName ??
       profile.username ??
       '카카오 사용자';
+    console.log(`[KAKAO] profile received | id=${profile.id} email=${email ?? 'none'} name=${name}`);
     done(null, { provider: 'kakao', providerId: String(profile.id), email, name });
   }
 }
