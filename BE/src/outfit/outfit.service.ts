@@ -138,14 +138,17 @@ export class OutfitService {
       },
     };
 
-    let res: Response;
-    try {
-      res = await fetch(`${aiUrl}/recommend`, {
+    const fetchAi = (timeoutMs: number) =>
+      fetch(`${aiUrl}/recommend`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(30_000),
+        signal: AbortSignal.timeout(timeoutMs),
       });
+
+    let res: Response;
+    try {
+      res = await fetchAi(45_000);
     } catch (err) {
       this.logger.error(`[recommend] AI 서비스 연결 실패 url=${aiUrl}/recommend`, err instanceof Error ? err.message : String(err));
       throw new InternalServerErrorException(
@@ -153,10 +156,23 @@ export class OutfitService {
       );
     }
 
+    // 502/503: Render 무료 플랜 슬립 상태 → 30초 대기 후 1회 재시도
+    if (res.status === 502 || res.status === 503) {
+      this.logger.warn(`[recommend] AI 서비스 ${res.status} — 30초 후 재시도`);
+      await new Promise<void>((r) => setTimeout(r, 30_000));
+      try {
+        res = await fetchAi(45_000);
+      } catch (err) {
+        this.logger.error(`[recommend] AI 서비스 재시도 실패`, err instanceof Error ? err.message : String(err));
+        throw new InternalServerErrorException(
+          'AI 서비스를 시작할 수 없습니다. 잠시 후 다시 시도해주세요.',
+        );
+      }
+    }
+
     if (!res.ok) {
       const detail = await res.text().catch(() => '');
       this.logger.error(`[recommend] AI 서비스 오류 status=${res.status} detail=${detail.slice(0, 300)}`);
-      // 502/503 게이트웨이 에러 또는 HTML 응답은 사용자에게 노출하지 않음
       const isGatewayError = res.status === 502 || res.status === 503;
       const isHtmlResponse = detail.trimStart().startsWith('<!');
       throw new InternalServerErrorException(
