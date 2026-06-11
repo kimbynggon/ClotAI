@@ -83,7 +83,7 @@ def generate_recommendation(req: RecommendRequest) -> dict:
 
     system_prompt = _load_prompt("system_prompt.txt")
     user_message = _build_message(req)
-    model_name = os.environ.get("AI_MODEL", "gemini-1.5-flash")
+    model_name = os.environ.get("AI_MODEL", "gemini-2.0-flash")
 
     logger.info(f"[recommend] 모델 호출 시작 model={model_name}")
 
