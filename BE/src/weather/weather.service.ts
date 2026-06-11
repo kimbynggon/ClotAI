@@ -126,6 +126,7 @@ export class WeatherService {
       if (!res.ok) throw new Error(`Open-Meteo ${res.status}`);
       json = await res.json();
     } catch (e) {
+      this.logger.error(`[getWeather] fetch 실패 err=${e instanceof Error ? e.message : String(e)}`);
       throw new InternalServerErrorException('날씨 정보를 가져올 수 없습니다. 잠시 후 다시 시도해주세요.');
     }
 
@@ -165,7 +166,8 @@ export class WeatherService {
       const res = await fetch(url);
       if (!res.ok) throw new Error(`Geocoding ${res.status}`);
       json = await res.json();
-    } catch {
+    } catch (e) {
+      this.logger.error(`[geocode] fetch 실패 city=${city} query=${query} err=${e instanceof Error ? e.message : String(e)}`);
       throw new InternalServerErrorException('도시 정보를 가져올 수 없습니다. 잠시 후 다시 시도해주세요.');
     }
 
