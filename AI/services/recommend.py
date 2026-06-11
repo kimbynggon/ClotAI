@@ -1,11 +1,12 @@
 import json
+import logging
 import os
 from pathlib import Path
 
 import google.generativeai as genai
 from schemas.request import RecommendRequest
 
-genai.configure(api_key=os.environ.get("GOOGLE_API_KEY", ""))
+logger = logging.getLogger(__name__)
 
 PROMPT_DIR = Path(__file__).parent.parent / "prompts"
 
@@ -38,7 +39,9 @@ JSON_SCHEMA = """
 
 
 def _load_prompt(filename: str) -> str:
-    return (PROMPT_DIR / filename).read_text(encoding="utf-8")
+    path = PROMPT_DIR / filename
+    logger.info(f"[recommend] 프롬프트 로드: {path}")
+    return path.read_text(encoding="utf-8")
 
 
 def _build_message(req: RecommendRequest) -> str:
@@ -71,9 +74,18 @@ def _build_message(req: RecommendRequest) -> str:
 
 
 def generate_recommendation(req: RecommendRequest) -> dict:
+    api_key = os.environ.get("GOOGLE_API_KEY", "")
+    if not api_key:
+        logger.error("[recommend] GOOGLE_API_KEY 환경변수가 설정되지 않았습니다!")
+        raise RuntimeError("GOOGLE_API_KEY가 설정되지 않았습니다. Render 환경변수를 확인해주세요.")
+
+    genai.configure(api_key=api_key)
+
     system_prompt = _load_prompt("system_prompt.txt")
     user_message = _build_message(req)
     model_name = os.environ.get("AI_MODEL", "gemini-1.5-flash")
+
+    logger.info(f"[recommend] 모델 호출 시작 model={model_name}")
 
     model = genai.GenerativeModel(
         model_name,
@@ -83,9 +95,11 @@ def generate_recommendation(req: RecommendRequest) -> dict:
     response = model.generate_content(
         user_message,
         generation_config=genai.types.GenerationConfig(max_output_tokens=1024),
+        request_options={"timeout": 30},
     )
 
     raw = response.text.strip()
+    logger.info(f"[recommend] Gemini 원본 응답 길이={len(raw)}")
 
     if raw.startswith("```"):
         raw = raw.split("```")[1]
@@ -95,7 +109,8 @@ def generate_recommendation(req: RecommendRequest) -> dict:
 
     try:
         return json.loads(raw)
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
+        logger.warning(f"[recommend] JSON 파싱 실패 err={e} raw={raw[:200]}")
         return {
             "outfit": {
                 "top": "흰색 반팔 티셔츠",

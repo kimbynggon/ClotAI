@@ -1,11 +1,19 @@
+import logging
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-import os
 
 from routers import outfit
 
 load_dotenv()
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="ClotAI - AI Service", version="1.0.0")
 
@@ -23,6 +31,16 @@ app.add_middleware(
 app.include_router(outfit.router, tags=["outfit"])
 
 
+@app.on_event("startup")
+async def startup_check():
+    api_key = os.environ.get("GOOGLE_API_KEY", "")
+    if not api_key:
+        logger.warning("⚠️  GOOGLE_API_KEY 환경변수가 설정되지 않았습니다. /recommend 요청이 실패합니다.")
+    else:
+        logger.info(f"✅ GOOGLE_API_KEY 설정 확인 (길이={len(api_key)})")
+
+
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "clotai-ai"}
+    api_key_set = bool(os.environ.get("GOOGLE_API_KEY", ""))
+    return {"status": "ok", "service": "clotai-ai", "api_key_configured": api_key_set}
