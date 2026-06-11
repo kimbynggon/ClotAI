@@ -81,6 +81,9 @@ const realWeatherAPI = {
 };
 
 const realOutfitAPI = {
+  warmup: async () => {
+    try { await api.post('/api/outfit/warmup'); } catch { /* 무시 */ }
+  },
   recommend: async (data) => {
     const res = await api.post('/api/outfit/recommend', data);
     return { data: res.data.data };

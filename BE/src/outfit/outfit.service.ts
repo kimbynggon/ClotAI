@@ -25,6 +25,16 @@ export class OutfitService {
     private readonly configService: ConfigService,
   ) {}
 
+  warmupAi(): void {
+    const aiUrl = this.configService.get<string>('AI_SERVICE_URL', 'http://localhost:8000');
+    this.logger.log(`[warmup] AI 서비스 핑 시작 url=${aiUrl}/health`);
+    fetch(`${aiUrl}/health`, { signal: AbortSignal.timeout(60_000) })
+      .then(() => this.logger.log(`[warmup] AI 서비스 응답 완료 — 슬립 해제`))
+      .catch((err: unknown) =>
+        this.logger.warn(`[warmup] AI 핑 실패 err=${err instanceof Error ? err.message : String(err)}`),
+      );
+  }
+
   async recommend(userId: number, dto: RecommendOutfitDto) {
     this.logger.log(`[recommend] 시작 userId=${userId}`);
 

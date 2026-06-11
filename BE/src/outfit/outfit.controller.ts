@@ -77,10 +77,17 @@ function successResponse(dataSchema: object, description: string) {
 export class OutfitController {
   constructor(private readonly outfitService: OutfitService) {}
 
+  @Post('warmup')
+  @ApiOperation({ summary: 'AI 서비스 슬립 해제 워밍업', description: '페이지 진입 시 AI 서비스 cold start 방지용 핑. 즉시 반환.' })
+  warmup() {
+    this.outfitService.warmupAi();
+    return { success: true, message: 'AI 서비스 워밍업을 시작했습니다.', data: null };
+  }
+
   @Post('recommend')
   @ApiOperation({
     summary: 'AI OOTD 추천',
-    description: '`city` 또는 `lat+lon` 중 하나 필수. 프로필 등록 필요. AI 응답까지 최대 30초 소요.',
+    description: '`city` 또는 `lat+lon` 중 하나 필수. 프로필 등록 필요.',
   })
   @ApiResponse({ status: 201, ...successResponse(OutfitDetailSchema, 'AI 추천 완료') })
   @ApiResponse({ status: 400, description: '프로필 미등록 또는 위치 정보 누락' })

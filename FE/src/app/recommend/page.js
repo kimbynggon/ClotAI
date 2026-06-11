@@ -71,11 +71,13 @@ export default function RecommendPage() {
 
   useEffect(() => {
     if (!user) return;
-    import('@/utils/api').then(({ profileAPI }) =>
+    import('@/utils/api').then(({ profileAPI, outfitAPI }) => {
+      // AI 서비스 슬립 해제 (fire-and-forget)
+      outfitAPI.warmup?.();
       profileAPI.get()
         .then((res) => setHasProfile(!!res.data))
-        .catch(() => setHasProfile(false))
-    );
+        .catch(() => setHasProfile(false));
+    });
   }, [user]);
 
   useEffect(() => {
