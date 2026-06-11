@@ -64,12 +64,18 @@ export class OutfitService {
 
     this.logger.log(`[recommend] AI 서비스 호출 시작`);
     let aiResult: Record<string, unknown>;
+    let isFallback = false;
     try {
       aiResult = await this.callAiService(profile, weather);
       this.logger.log(`[recommend] AI 서비스 응답 완료`);
     } catch {
       this.logger.warn(`[recommend] AI 서비스 실패 — 기본 추천 반환`);
       aiResult = this.buildFallbackRecommendation(weather);
+      isFallback = true;
+    }
+
+    if (isFallback) {
+      return this.formatOutfit({ id: 0, createdAt: new Date() }, aiResult, weather, true);
     }
 
     const outfit = await this.prisma.outfit.create({
@@ -80,7 +86,7 @@ export class OutfitService {
       },
     });
 
-    return this.formatOutfit(outfit, aiResult, weather);
+    return this.formatOutfit(outfit, aiResult, weather, false);
   }
 
   async getHistory(userId: number) {
@@ -183,6 +189,7 @@ export class OutfitService {
     outfit: { id: number; createdAt: Date },
     ai: Record<string, unknown>,
     weather: Record<string, unknown> | WeatherResult,
+    isFallback = false,
   ) {
     return {
       id: outfit.id,
@@ -192,6 +199,7 @@ export class OutfitService {
       colorPalette: ai['colorPalette'],
       weather,
       createdAt: outfit.createdAt,
+      isFallback,
     };
   }
 

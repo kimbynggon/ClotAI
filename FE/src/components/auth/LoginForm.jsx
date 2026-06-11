@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import SocialLoginButtons from './SocialLoginButtons';
+
+const SAVED_ID_KEY = 'saved_user_id';
 
 export default function LoginForm() {
   const { login, continueAsGuest } = useAuth();
@@ -13,11 +15,22 @@ export default function LoginForm() {
   const [serverError, setServerError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
+  const [saveId, setSaveId] = useState(false);
+
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm();
+
+  useEffect(() => {
+    const saved = localStorage.getItem(SAVED_ID_KEY);
+    if (saved) {
+      setValue('user_id', saved);
+      setSaveId(true);
+    }
+  }, [setValue]);
 
   const onSubmit = async (data) => {
     setIsLoading(true);
@@ -25,6 +38,11 @@ export default function LoginForm() {
     try {
       const { authAPI } = await import('@/utils/api');
       const res = await authAPI.login(data);
+      if (saveId) {
+        localStorage.setItem(SAVED_ID_KEY, data.user_id);
+      } else {
+        localStorage.removeItem(SAVED_ID_KEY);
+      }
       login(res.data.user, res.data.token);
       router.push('/');
     } catch (err) {
@@ -64,6 +82,15 @@ export default function LoginForm() {
             })}
           />
           {errors.user_id && <p className="error-msg">{errors.user_id.message}</p>}
+          <label className="flex items-center gap-2 mt-2 cursor-pointer w-fit">
+            <input
+              type="checkbox"
+              checked={saveId}
+              onChange={(e) => setSaveId(e.target.checked)}
+              className="w-4 h-4 rounded border-zinc-300 accent-rose-500"
+            />
+            <span className="text-xs text-zinc-500">아이디 저장</span>
+          </label>
         </div>
 
         <div>

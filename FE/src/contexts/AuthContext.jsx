@@ -26,6 +26,16 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  // api.js 인터셉터에서 세션 만료 이벤트를 받아 자동 로그아웃
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      setUser(null);
+      setIsGuest(false);
+    };
+    window.addEventListener('clotai:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('clotai:unauthorized', handleUnauthorized);
+  }, []);
+
   const login = useCallback((userData, token) => {
     localStorage.setItem('auth_token', token);
     localStorage.setItem('auth_user', JSON.stringify(userData));

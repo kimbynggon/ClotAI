@@ -25,7 +25,11 @@ api.interceptors.response.use(
       const hadToken = localStorage.getItem('auth_token');
       localStorage.removeItem('auth_token');
       localStorage.removeItem('auth_user');
-      if (hadToken) window.location.href = '/login';
+      if (hadToken) {
+        // AuthContext에 세션 만료 알림 → user state 초기화
+        window.dispatchEvent(new CustomEvent('clotai:unauthorized'));
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(err);
   },

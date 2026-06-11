@@ -48,7 +48,7 @@ export default function OutfitCard({
   isPreview = false,
   onRetry,
 }) {
-  const { outfit, reason, styleKeyword, colorPalette, weather, createdAt, id } = result;
+  const { outfit, reason, styleKeyword, colorPalette, weather, createdAt, id, isFallback } = result;
   const [copied, setCopied] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
   const [favoriteLoading, setFavoriteLoading] = useState(false);
@@ -79,6 +79,20 @@ export default function OutfitCard({
 
   return (
     <div className="space-y-3">
+      {/* fallback 안내 배너 */}
+      {isFallback && (
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+          <svg className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p className="text-xs text-amber-700 leading-relaxed">
+            AI 서비스 준비 중입니다. 날씨 기반 기본 추천을 보여드리고 있어요.
+            잠시 후 다시 시도하면 체형·취향까지 반영한 AI 맞춤 추천을 받을 수 있습니다.
+          </p>
+        </div>
+      )}
+
       {/* 날짜 + 배지 헤더 */}
       <div className="card px-5 py-3.5 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
@@ -114,6 +128,11 @@ export default function OutfitCard({
           {weather?.isRaining && <span className="text-blue-500 text-xs font-semibold">🌂 우산 필요</span>}
           {weather?.isSnowing && <span className="text-sky-400 text-xs font-semibold">❄️ 눈 예보</span>}
         </div>
+        {weather?.cachedAt && (
+          <p className="text-xs text-zinc-400 mt-2">
+            {new Date(weather.cachedAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })} 기준
+          </p>
+        )}
       </div>
 
       {/* 컬러 팔레트 */}
