@@ -56,6 +56,7 @@ export default function RecommendPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
+  const [hasProfile, setHasProfile] = useState(null); // null=확인중, true/false=확인완료
   const [previewResult, setPreviewResult] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState(false);
@@ -67,6 +68,15 @@ export default function RecommendPage() {
       router.replace('/login');
     }
   }, [loading, user, isGuest, router]);
+
+  useEffect(() => {
+    if (!user) return;
+    import('@/utils/api').then(({ profileAPI }) =>
+      profileAPI.get()
+        .then((res) => setHasProfile(!!res.data))
+        .catch(() => setHasProfile(false))
+    );
+  }, [user]);
 
   useEffect(() => {
     if (!isGuest) return;
@@ -245,7 +255,33 @@ export default function RecommendPage() {
           <p className="text-zinc-500 text-sm">날씨와 취향을 분석해 코디를 추천해드려요</p>
         </div>
 
-        {!result && (
+        {/* 프로필 확인 중 */}
+        {hasProfile === null && (
+          <div className="flex justify-center py-16">
+            <div className="w-8 h-8 border-2 border-rose-400 border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
+
+        {/* 프로필 미등록 */}
+        {hasProfile === false && (
+          <div className="card p-8 text-center space-y-4">
+            <div className="w-14 h-14 bg-rose-100 rounded-full flex items-center justify-center mx-auto">
+              <svg className="w-7 h-7 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            </div>
+            <div>
+              <p className="font-semibold text-zinc-900 mb-1">프로필을 먼저 등록해주세요</p>
+              <p className="text-sm text-zinc-500">OOTD 추천을 받으려면 체형·스타일 정보가 필요해요.</p>
+            </div>
+            <Link href="/profile" className="btn-rose px-6 py-3 inline-block">
+              프로필 등록하기
+            </Link>
+          </div>
+        )}
+
+        {hasProfile && !result && (
           <div className="card p-6 mb-6">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>

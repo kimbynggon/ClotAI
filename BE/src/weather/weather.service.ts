@@ -1,15 +1,44 @@
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, InternalServerErrorException, Logger } from '@nestjs/common';
 
 // ── 주요 한국 도시 한글 → 영문 변환 테이블 ──────────────────────
 const KO_CITIES: Record<string, string> = {
-  서울: 'Seoul', 부산: 'Busan', 대구: 'Daegu', 인천: 'Incheon',
-  광주: 'Gwangju', 대전: 'Daejeon', 울산: 'Ulsan', 세종: 'Sejong',
-  수원: 'Suwon', 창원: 'Changwon', 고양: 'Goyang', 용인: 'Yongin',
-  성남: 'Seongnam', 청주: 'Cheongju', 전주: 'Jeonju', 천안: 'Cheonan',
-  안산: 'Ansan', 안양: 'Anyang', 남양주: 'Namyangju', 화성: 'Hwaseong',
-  제주: 'Jeju', 춘천: 'Chuncheon', 원주: 'Wonju', 강릉: 'Gangneung',
-  포항: 'Pohang', 경주: 'Gyeongju', 구미: 'Gumi', 목포: 'Mokpo',
-  여수: 'Yeosu', 순천: 'Suncheon',
+  // 특별/광역/특별자치시 (시 접미사 포함 변형)
+  서울: 'Seoul', 서울시: 'Seoul', 서울특별시: 'Seoul',
+  부산: 'Busan', 부산시: 'Busan', 부산광역시: 'Busan',
+  대구: 'Daegu', 대구시: 'Daegu', 대구광역시: 'Daegu',
+  인천: 'Incheon', 인천시: 'Incheon', 인천광역시: 'Incheon',
+  광주: 'Gwangju', 광주시: 'Gwangju', 광주광역시: 'Gwangju',
+  대전: 'Daejeon', 대전시: 'Daejeon', 대전광역시: 'Daejeon',
+  울산: 'Ulsan', 울산시: 'Ulsan', 울산광역시: 'Ulsan',
+  세종: 'Sejong', 세종시: 'Sejong', 세종특별자치시: 'Sejong',
+  // 수도권
+  수원: 'Suwon', 수원시: 'Suwon',
+  고양: 'Goyang', 고양시: 'Goyang',
+  용인: 'Yongin', 용인시: 'Yongin',
+  성남: 'Seongnam', 성남시: 'Seongnam',
+  안산: 'Ansan', 안산시: 'Ansan',
+  안양: 'Anyang', 안양시: 'Anyang',
+  남양주: 'Namyangju', 남양주시: 'Namyangju',
+  화성: 'Hwaseong', 화성시: 'Hwaseong',
+  // 충청권
+  청주: 'Cheongju', 청주시: 'Cheongju',
+  천안: 'Cheonan', 천안시: 'Cheonan',
+  // 전라권
+  전주: 'Jeonju', 전주시: 'Jeonju',
+  목포: 'Mokpo', 목포시: 'Mokpo',
+  여수: 'Yeosu', 여수시: 'Yeosu',
+  순천: 'Suncheon', 순천시: 'Suncheon',
+  // 경상권
+  창원: 'Changwon', 창원시: 'Changwon',
+  포항: 'Pohang', 포항시: 'Pohang',
+  경주: 'Gyeongju', 경주시: 'Gyeongju',
+  구미: 'Gumi', 구미시: 'Gumi',
+  // 강원권
+  춘천: 'Chuncheon', 춘천시: 'Chuncheon',
+  원주: 'Wonju', 원주시: 'Wonju',
+  강릉: 'Gangneung', 강릉시: 'Gangneung',
+  // 제주
+  제주: 'Jeju', 제주시: 'Jeju',
   // 광역시/도 단위 (대표 도시로 매핑)
   강원도: 'Chuncheon', 강원: 'Chuncheon', 강원특별자치도: 'Chuncheon',
   경기도: 'Suwon', 경기: 'Suwon',
@@ -97,7 +126,7 @@ export class WeatherService {
       if (!res.ok) throw new Error(`Open-Meteo ${res.status}`);
       json = await res.json();
     } catch (e) {
-      throw new BadRequestException('날씨 정보를 가져올 수 없습니다. 잠시 후 다시 시도해주세요.');
+      throw new InternalServerErrorException('날씨 정보를 가져올 수 없습니다. 잠시 후 다시 시도해주세요.');
     }
 
     const cur = json.current;
@@ -137,7 +166,7 @@ export class WeatherService {
       if (!res.ok) throw new Error(`Geocoding ${res.status}`);
       json = await res.json();
     } catch {
-      throw new BadRequestException('도시 정보를 가져올 수 없습니다.');
+      throw new InternalServerErrorException('도시 정보를 가져올 수 없습니다. 잠시 후 다시 시도해주세요.');
     }
 
     if (!json.results?.length) {
