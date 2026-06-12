@@ -23,16 +23,13 @@ export class LoggerInterceptor implements NestInterceptor {
   }
 
   private writeLog(log: string) {
-    // Render/클라우드 환경에서도 볼 수 있도록 stdout으로도 출력
+    // stdout: Render 대시보드 포함 모든 환경에서 실시간 확인
     process.stdout.write(log);
 
-    // 로컬 파일 로그 (Render는 ephemeral storage라 재시작 시 삭제되므로 로컬 전용)
-    if (process.env.NODE_ENV !== 'production') {
-      const date = new Date().toISOString().slice(0, 10);
-      // __dirname 기준: dist/common/interceptors → ../../.. → BE 루트/log
-      const logDir = path.resolve(__dirname, '../../../log');
-      if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
-      fs.appendFileSync(path.join(logDir, `${date}.log`), log);
-    }
+    // 파일: 서비스 생존 중 로그 보존 (Render는 재시작 시 초기화되나 운영 중에는 유효)
+    const date = new Date().toISOString().slice(0, 10);
+    const logDir = path.resolve(__dirname, '../../../log');
+    if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+    fs.appendFileSync(path.join(logDir, `${date}.log`), log);
   }
 }
