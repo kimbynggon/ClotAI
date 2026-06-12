@@ -62,6 +62,7 @@ export default function RecommendPage() {
   const [previewError, setPreviewError] = useState(false);
   const [limitReached, setLimitReached] = useState(false);
   const [remaining, setRemaining] = useState(GUEST_DAILY_LIMIT);
+  const [memberLimitReached, setMemberLimitReached] = useState(false);
 
   useEffect(() => {
     if (!loading && !user && !isGuest) {
@@ -117,7 +118,7 @@ export default function RecommendPage() {
       const status = err.response?.status;
       const msg = err.response?.data?.message;
       if (status === 429) {
-        setError(msg || '오늘의 추천 횟수(15회)를 초과했습니다. 내일 다시 이용해주세요.');
+        setMemberLimitReached(true);
       } else {
         setError(msg || '추천 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
       }
@@ -257,15 +258,31 @@ export default function RecommendPage() {
           <p className="text-zinc-500 text-sm">날씨와 취향을 분석해 코디를 추천해드려요</p>
         </div>
 
+        {/* 일일 추천 한도 초과 */}
+        {memberLimitReached && (
+          <div className="card p-8 text-center space-y-4">
+            <div className="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mx-auto">
+              <svg className="w-7 h-7 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div>
+              <p className="font-semibold text-zinc-900 mb-1">오늘 추천 횟수를 모두 사용했습니다</p>
+              <p className="text-sm text-zinc-500">내일 다시 추천 받아보실 수 있습니다</p>
+            </div>
+          </div>
+        )}
+
         {/* 프로필 확인 중 */}
-        {hasProfile === null && (
+        {!memberLimitReached && hasProfile === null && (
           <div className="flex justify-center py-16">
             <div className="w-8 h-8 border-2 border-rose-400 border-t-transparent rounded-full animate-spin" />
           </div>
         )}
 
         {/* 프로필 미등록 */}
-        {hasProfile === false && (
+        {!memberLimitReached && hasProfile === false && (
           <div className="card p-8 text-center space-y-4">
             <div className="w-14 h-14 bg-rose-100 rounded-full flex items-center justify-center mx-auto">
               <svg className="w-7 h-7 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -283,7 +300,7 @@ export default function RecommendPage() {
           </div>
         )}
 
-        {hasProfile && !result && (
+        {!memberLimitReached && hasProfile && !result && (
           <div className="card p-6 mb-6">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>

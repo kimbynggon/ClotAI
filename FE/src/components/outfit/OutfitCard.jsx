@@ -93,7 +93,7 @@ export default function OutfitCard({
         </div>
       )}
 
-      {/* 날짜 + 배지 헤더 */}
+      {/* 날짜 + 배지 + 액션 아이콘 헤더 */}
       <div className="card px-5 py-3.5 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <span className="text-xs font-bold text-rose-500 bg-rose-50 px-2.5 py-1 rounded-full border border-rose-100">
@@ -105,9 +105,48 @@ export default function OutfitCard({
             </span>
           )}
         </div>
-        <span className="text-xs font-mono font-semibold text-zinc-500">
-          {formatDate(createdAt)}
-        </span>
+        <div className="flex items-center gap-1">
+          {/* 공유 아이콘 */}
+          {showActions && (
+            <button
+              onClick={handleCopy}
+              className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors"
+              title="공유"
+            >
+              {copied ? (
+                <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                </svg>
+              )}
+            </button>
+          )}
+          {/* 즐겨찾기 아이콘 */}
+          {showActions && showFavorite && id !== 0 && (
+            <button
+              onClick={handleFavorite}
+              disabled={favoriteLoading}
+              className={`p-1.5 rounded-lg transition-colors ${
+                isFavorited
+                  ? 'text-rose-500 hover:text-rose-600'
+                  : 'text-zinc-400 hover:text-rose-400 hover:bg-zinc-100'
+              }`}
+              title={isFavorited ? '즐겨찾기 삭제' : '즐겨찾기 추가'}
+            >
+              <svg className="w-4 h-4" fill={isFavorited ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+              </svg>
+            </button>
+          )}
+          <span className="text-xs font-mono font-semibold text-zinc-500 ml-1">
+            {formatDate(createdAt)}
+          </span>
+        </div>
       </div>
 
       {/* 스타일 키워드 + 날씨 요약 */}
@@ -130,7 +169,9 @@ export default function OutfitCard({
         </div>
         {weather?.cachedAt && (
           <p className="text-xs text-zinc-400 mt-2">
-            {new Date(weather.cachedAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })} 기준
+            날씨 기준{' '}
+            {new Date(weather.cachedAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+            <span className="ml-1 text-zinc-300">(30분 캐시)</span>
           </p>
         )}
       </div>
@@ -183,64 +224,10 @@ export default function OutfitCard({
       </div>
 
       {/* 액션 버튼 */}
-      {showActions && (
-        <div className="flex gap-2">
-          {/* 공유 (텍스트 복사) */}
-          <button
-            onClick={handleCopy}
-            className="btn-secondary flex-1 py-3 text-sm flex items-center justify-center gap-1.5"
-          >
-            {copied ? (
-              <>
-                <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                복사됨
-              </>
-            ) : (
-              <>
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                </svg>
-                공유
-              </>
-            )}
-          </button>
-
-          {/* 즐겨찾기 */}
-          {showFavorite && id !== 0 && (
-            <button
-              onClick={handleFavorite}
-              disabled={favoriteLoading}
-              className={`py-3 px-4 rounded-xl border transition-colors ${
-                isFavorited
-                  ? 'bg-rose-500 border-rose-500 text-white'
-                  : 'bg-white border-zinc-200 text-zinc-500 hover:border-rose-300 hover:text-rose-500'
-              }`}
-              title={isFavorited ? '즐겨찾기 삭제' : '즐겨찾기 추가'}
-            >
-              <svg className="w-5 h-5" fill={isFavorited ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-              </svg>
-            </button>
-          )}
-
-          {/* 다시 추천 */}
-          {onRetry && (
-            <button onClick={onRetry} className="btn-ghost flex-1 py-3 text-sm">
-              다시 추천
-            </button>
-          )}
-
-          {/* 이력 보기 */}
-          {!onRetry && (
-            <Link href="/history" className="btn-ghost flex-1 py-3 text-center text-sm">
-              이력 보기
-            </Link>
-          )}
-        </div>
+      {showActions && onRetry && (
+        <button onClick={onRetry} className="btn-ghost w-full py-3 text-sm">
+          다시 추천
+        </button>
       )}
     </div>
   );

@@ -70,7 +70,7 @@ export default function HomePage() {
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
               {user ? (
                 <Link href="/recommend" className="btn-rose px-8 py-4 text-base">
-                  오늘 코디 보기
+                  OOTD 추천
                 </Link>
               ) : (
                 <>
