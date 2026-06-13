@@ -88,7 +88,7 @@ def generate_recommendation(req: RecommendRequest) -> dict:
 
     client = genai.Client(
         api_key=api_key,
-        http_options=types.HttpOptions(timeout=25),
+        http_options=types.HttpOptions(timeout=50000),  # 50,000ms = 50초
     )
 
     system_prompt = _load_prompt("system_prompt.txt")
