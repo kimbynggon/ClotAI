@@ -18,6 +18,18 @@ function formatDate(isoString) {
   return new Date(isoString).toISOString().slice(2, 10); // "26-06-10"
 }
 
+const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
+
+function formatCachedAt(isoString) {
+  const d = new Date(isoString);
+  const min = d.getMinutes();
+  // 30분 단위 내림: 0~29분 → 0분, 30~59분 → 30분
+  d.setMinutes(min < 30 ? 0 : 30, 0, 0);
+  const day = DAY_NAMES[d.getDay()];
+  const time = d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return `${day}요일 ${time}`;
+}
+
 function getShoppingUrl(item) {
   return `https://www.musinsa.com/search/goods?keyword=${encodeURIComponent(item)}`;
 }
@@ -99,17 +111,10 @@ export default function OutfitCard({
         </div>
       )}
 
-      {/* 날짜 + 배지 + 액션 아이콘 헤더 */}
-      <div className="card px-5 py-3.5 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          {isPreview && (
-            <span className="text-xs text-zinc-400 bg-zinc-100 px-2.5 py-1 rounded-full">
-              게스트 미리보기
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-1">
-          {/* 공유 아이콘 */}
+      {/* 헤더: 공유버튼 | 날씨 요약 | 즐겨찾기+날짜 */}
+      <div className="card px-4 py-3 flex items-center gap-3">
+        {/* 왼쪽: 공유 버튼 + 미리보기 배지 */}
+        <div className="flex items-center gap-1.5 shrink-0">
           {showActions && (
             <button
               onClick={handleCopy}
@@ -128,14 +133,38 @@ export default function OutfitCard({
               )}
             </button>
           )}
-          {/* 즐겨찾기 — 게스트: 로그인 안내 / 로그인: 즐겨찾기 버튼 */}
+          {isPreview && (
+            <span className="text-xs text-zinc-400 bg-zinc-100 px-2 py-0.5 rounded-full whitespace-nowrap">
+              미리보기
+            </span>
+          )}
+        </div>
+
+        {/* 가운데: 날씨 핵심 데이터 */}
+        <div className="flex-1 flex items-center gap-2 min-w-0 overflow-hidden">
+          {weather?.city && (
+            <span className="text-xs font-semibold text-zinc-600 truncate shrink-0 max-w-[5rem]">
+              {weather.city}
+            </span>
+          )}
+          <span className="text-xs font-bold text-zinc-900 shrink-0">{weather?.temperature}°C</span>
+          <span className="text-xs text-zinc-500 truncate">{weather?.weatherDescription}</span>
+          {weather?.feelsLike !== undefined && (
+            <span className="text-xs text-zinc-400 shrink-0 hidden sm:inline">체감 {weather.feelsLike}°C</span>
+          )}
+          {weather?.isRaining && <span className="text-blue-500 text-xs shrink-0">🌂</span>}
+          {weather?.isSnowing && <span className="text-sky-400 text-xs shrink-0">❄️</span>}
+        </div>
+
+        {/* 오른쪽: 즐겨찾기 + 날짜 */}
+        <div className="flex items-center gap-1 shrink-0">
           {showActions && isGuest && (
             <Link
               href="/login"
               className="text-xs text-zinc-400 hover:text-rose-500 transition-colors border border-zinc-200 hover:border-rose-300 rounded-lg px-2 py-1 whitespace-nowrap"
               title="로그인하면 즐겨찾기 저장 가능"
             >
-              ♡ 저장하려면 로그인
+              ♡ 저장
             </Link>
           )}
           {showActions && showFavorite && !isGuest && id !== 0 && (
@@ -155,7 +184,7 @@ export default function OutfitCard({
               </svg>
             </button>
           )}
-          <span className="text-xs font-mono font-semibold text-zinc-500 ml-1">
+          <span className="text-xs font-mono text-zinc-400 ml-1">
             {formatDate(createdAt)}
           </span>
         </div>
@@ -193,8 +222,7 @@ export default function OutfitCard({
         </div>
         {weather?.cachedAt && (
           <p className="text-xs text-zinc-300 mt-2">
-            날씨 기준{' '}
-            {new Date(weather.cachedAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+            날씨 기준 {formatCachedAt(weather.cachedAt)}
           </p>
         )}
       </div>
