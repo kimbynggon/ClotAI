@@ -4,13 +4,10 @@ import os
 import time
 from pathlib import Path
 
-import google.generativeai as genai
-from google.api_core.exceptions import (
-    ResourceExhausted,
-    PermissionDenied,
-    Unauthenticated,
-    InvalidArgument,
-)
+from google import genai
+from google.genai import types
+from google.genai.errors import ClientError
+
 from schemas.request import RecommendRequest
 
 logger = logging.getLogger(__name__)
@@ -84,43 +81,41 @@ def generate_recommendation(req: RecommendRequest) -> dict:
     api_key = os.environ.get("GOOGLE_API_KEY", "")
     if not api_key:
         logger.error("[recommend] GOOGLE_API_KEY 환경변수가 설정되지 않았습니다!")
-        raise RuntimeError("GOOGLE_API_KEY가 설정되지 않았습니다. Render 환경변수를 확인해주세요.")
+        raise RuntimeError("GOOGLE_API_KEY가 설정되지 않았습니다.")
 
-    genai.configure(api_key=api_key)
+    model_name = os.environ.get("AI_MODEL", "gemini-2.0-flash")
+    logger.info(f"[recommend] 모델 호출 시작 model={model_name} key_prefix={api_key[:6]}")
+
+    client = genai.Client(
+        api_key=api_key,
+        http_options=types.HttpOptions(timeout=25),
+    )
 
     system_prompt = _load_prompt("system_prompt.txt")
     user_message = _build_message(req)
-    model_name = os.environ.get("AI_MODEL", "gemini-2.0-flash")
-
-    logger.info(f"[recommend] 모델 호출 시작 model={model_name}")
-
-    model = genai.GenerativeModel(
-        model_name,
-        system_instruction=system_prompt,
-    )
-
-    generation_config = genai.types.GenerationConfig(max_output_tokens=1024)
 
     for attempt in range(2):
         try:
-            response = model.generate_content(
-                user_message,
-                generation_config=generation_config,
-                request_options={"timeout": 25},
+            response = client.models.generate_content(
+                model=model_name,
+                contents=user_message,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_prompt,
+                    max_output_tokens=1024,
+                ),
             )
             break
-        except (PermissionDenied, Unauthenticated) as e:
-            logger.error(f"[recommend] API 키 인증 실패 — Render 환경변수 GOOGLE_API_KEY를 확인하세요. err={e}")
-            raise
-        except InvalidArgument as e:
-            logger.error(f"[recommend] 잘못된 요청 (API 키 형식 오류 가능성) err={e}")
-            raise
-        except ResourceExhausted:
-            if attempt == 0:
-                logger.warning("[recommend] 429 rate limit — 5초 후 재시도")
-                time.sleep(5)
+        except ClientError as e:
+            status = getattr(e, "status_code", 0)
+            logger.error(f"[recommend] ClientError attempt={attempt} status={status} msg={str(e)}")
+            if status == 429:
+                if attempt == 0:
+                    logger.warning("[recommend] 429 rate limit — 5초 후 재시도")
+                    time.sleep(5)
+                else:
+                    logger.error("[recommend] 429 재시도 실패 — 할당량 초과")
+                    raise
             else:
-                logger.error("[recommend] 429 rate limit 재시도 실패 — 일일 할당량 초과 가능")
                 raise
 
     raw = response.text.strip()

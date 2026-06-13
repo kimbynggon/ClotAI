@@ -37,7 +37,8 @@ async def startup_check():
     if not api_key:
         logger.warning("⚠️  GOOGLE_API_KEY 환경변수가 설정되지 않았습니다. /recommend 요청이 실패합니다.")
     else:
-        logger.info(f"✅ GOOGLE_API_KEY 설정 확인 (길이={len(api_key)})")
+        masked = api_key[:6] + "..." if len(api_key) > 6 else "***"
+        logger.info(f"✅ GOOGLE_API_KEY 설정 확인 (prefix={masked}, 길이={len(api_key)})")
 
 
 @app.get("/health")
