@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 
+
 const SEASON_LABEL = { spring: '봄', summer: '여름', autumn: '가을', winter: '겨울' };
 
 const OUTFIT_FIELDS = [
@@ -46,6 +47,7 @@ export default function OutfitCard({
   showActions = true,
   showFavorite = false,
   isPreview = false,
+  isGuest = false,
   onRetry,
 }) {
   const { outfit, reason, styleKeyword, colorPalette, weather, createdAt, id, isFallback } = result;
@@ -81,24 +83,25 @@ export default function OutfitCard({
     <div className="space-y-3">
       {/* fallback 안내 배너 */}
       {isFallback && (
-        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-4">
           <svg className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          <p className="text-xs text-amber-700 leading-relaxed">
-            AI 서비스 준비 중입니다. 날씨 기반 기본 추천을 보여드리고 있어요.
-            잠시 후 다시 시도하면 체형·취향까지 반영한 AI 맞춤 추천을 받을 수 있습니다.
-          </p>
+          <div className="space-y-1">
+            <p className="text-xs font-semibold text-amber-800">현재 AI 추천을 로드하는 중입니다</p>
+            <p className="text-xs text-amber-700 leading-relaxed">
+              아래는 날씨 기반 미리보기이니 참고용으로만 봐주세요. 조금만 기다리신 후 다시 시도하시면
+              체형·취향까지 반영한 AI 맞춤 추천을 받아보실 수 있습니다.
+            </p>
+            <p className="text-xs font-semibold text-amber-600">✓ 미리보기에서는 추천 횟수가 차감되지 않습니다.</p>
+          </div>
         </div>
       )}
 
       {/* 날짜 + 배지 + 액션 아이콘 헤더 */}
       <div className="card px-5 py-3.5 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <span className="text-xs font-bold text-rose-500 bg-rose-50 px-2.5 py-1 rounded-full border border-rose-100">
-            실시간 날씨 기반
-          </span>
           {isPreview && (
             <span className="text-xs text-zinc-400 bg-zinc-100 px-2.5 py-1 rounded-full">
               게스트 미리보기
@@ -125,8 +128,17 @@ export default function OutfitCard({
               )}
             </button>
           )}
-          {/* 즐겨찾기 아이콘 */}
-          {showActions && showFavorite && id !== 0 && (
+          {/* 즐겨찾기 — 게스트: 로그인 안내 / 로그인: 즐겨찾기 버튼 */}
+          {showActions && isGuest && (
+            <Link
+              href="/login"
+              className="text-xs text-zinc-400 hover:text-rose-500 transition-colors border border-zinc-200 hover:border-rose-300 rounded-lg px-2 py-1 whitespace-nowrap"
+              title="로그인하면 즐겨찾기 저장 가능"
+            >
+              ♡ 저장하려면 로그인
+            </Link>
+          )}
+          {showActions && showFavorite && !isGuest && id !== 0 && (
             <button
               onClick={handleFavorite}
               disabled={favoriteLoading}
@@ -167,11 +179,22 @@ export default function OutfitCard({
           {weather?.isRaining && <span className="text-blue-500 text-xs font-semibold">🌂 우산 필요</span>}
           {weather?.isSnowing && <span className="text-sky-400 text-xs font-semibold">❄️ 눈 예보</span>}
         </div>
+        {/* 상세 날씨 정보 */}
+        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
+          {weather?.humidity !== undefined && (
+            <span className="text-xs text-zinc-400">습도 {weather.humidity}%</span>
+          )}
+          {weather?.windSpeed !== undefined && (
+            <span className="text-xs text-zinc-400">풍속 {weather.windSpeed}km/h</span>
+          )}
+          {weather?.precipitation !== undefined && weather.precipitation > 0 && (
+            <span className="text-xs text-zinc-400">강수량 {weather.precipitation}mm</span>
+          )}
+        </div>
         {weather?.cachedAt && (
-          <p className="text-xs text-zinc-400 mt-2">
+          <p className="text-xs text-zinc-300 mt-2">
             날씨 기준{' '}
             {new Date(weather.cachedAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
-            <span className="ml-1 text-zinc-300">(30분 캐시)</span>
           </p>
         )}
       </div>
@@ -203,17 +226,16 @@ export default function OutfitCard({
                   href={getShoppingUrl(outfit[key])}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="shrink-0 text-xs text-zinc-400 hover:text-rose-500 transition-colors border border-zinc-200 hover:border-rose-300 rounded-lg px-2 py-1"
-                  title="무신사에서 찾아보기"
+                  className="shrink-0 text-xs font-semibold text-rose-500 hover:text-white hover:bg-rose-500 transition-colors border border-rose-300 hover:border-rose-500 rounded-lg px-2.5 py-1.5 whitespace-nowrap"
                 >
-                  🛍
+                  무신사
                 </a>
               )}
             </div>
           ))}
         </div>
         {!isPreview && (
-          <p className="text-xs text-zinc-400 mt-3 text-right">쇼핑 링크: 무신사 검색</p>
+          <p className="text-xs text-zinc-400 mt-3 text-right">각 항목 버튼으로 무신사 검색</p>
         )}
       </div>
 

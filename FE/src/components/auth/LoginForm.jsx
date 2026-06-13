@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import SocialLoginButtons from './SocialLoginButtons';
 
@@ -12,6 +12,8 @@ const SAVED_ID_KEY = 'saved_user_id';
 export default function LoginForm() {
   const { login, continueAsGuest } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isExpired = searchParams.get('expired') === '1';
   const [serverError, setServerError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -68,6 +70,16 @@ export default function LoginForm() {
         <h1 className="text-2xl font-bold text-zinc-900">다시 만나서 반가워요</h1>
         <p className="text-sm text-zinc-500 mt-1">로그인하고 나만의 OOTD를 받아보세요</p>
       </div>
+
+      {/* 세션 만료 안내 */}
+      {isExpired && (
+        <div className="mx-8 mb-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700 flex items-start gap-2">
+          <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          세션이 만료되었습니다. 다시 로그인해주세요.
+        </div>
+      )}
 
       {/* 폼 */}
       <form onSubmit={handleSubmit(onSubmit)} className="px-8 pb-6 space-y-4">

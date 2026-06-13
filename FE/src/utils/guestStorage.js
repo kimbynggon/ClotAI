@@ -1,8 +1,31 @@
 const GUEST_KEY = 'fashion_guest';
 const GUEST_PROFILE_KEY = 'fashion_guest_profile';
-const GUEST_LIMIT_KEY = 'fashion_guest_limit';
+const GUEST_LIMIT_COOKIE = 'guest_daily_limit';
 
 export const GUEST_DAILY_LIMIT = 3;
+
+function parseLimitCookie() {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie
+    .split(';')
+    .map((c) => c.trim())
+    .find((c) => c.startsWith(`${GUEST_LIMIT_COOKIE}=`));
+  if (!match) return null;
+  try {
+    const value = match.slice(GUEST_LIMIT_COOKIE.length + 1);
+    const [date, count] = value.split(':');
+    return { date, count: parseInt(count, 10) };
+  } catch {
+    return null;
+  }
+}
+
+function setLimitCookie(date, count) {
+  if (typeof document === 'undefined') return;
+  const midnight = new Date();
+  midnight.setHours(23, 59, 59, 999);
+  document.cookie = `${GUEST_LIMIT_COOKIE}=${date}:${count}; expires=${midnight.toUTCString()}; path=/; SameSite=Lax`;
+}
 
 export const guestStorage = {
   init() {
@@ -35,39 +58,31 @@ export const guestStorage = {
     if (typeof window === 'undefined') return;
     localStorage.removeItem(GUEST_KEY);
     localStorage.removeItem(GUEST_PROFILE_KEY);
-    localStorage.removeItem(GUEST_LIMIT_KEY);
+    document.cookie = `${GUEST_LIMIT_COOKIE}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
   },
 
   exists() {
     return !!this.get();
   },
 
-  // 조회 제한
-  _getLimitData() {
-    if (typeof window === 'undefined') return null;
-    const raw = localStorage.getItem(GUEST_LIMIT_KEY);
-    return raw ? JSON.parse(raw) : null;
-  },
-
-  canPreview() {
+  canRecommend() {
     const today = new Date().toISOString().slice(0, 10);
-    const data = this._getLimitData();
+    const data = parseLimitCookie();
     if (!data || data.date !== today) return true;
     return data.count < GUEST_DAILY_LIMIT;
   },
 
-  getRemainingPreviews() {
+  getRemainingRecommends() {
     const today = new Date().toISOString().slice(0, 10);
-    const data = this._getLimitData();
+    const data = parseLimitCookie();
     if (!data || data.date !== today) return GUEST_DAILY_LIMIT;
     return Math.max(0, GUEST_DAILY_LIMIT - data.count);
   },
 
-  incrementPreview() {
-    if (typeof window === 'undefined') return;
+  incrementRecommend() {
     const today = new Date().toISOString().slice(0, 10);
-    const data = this._getLimitData();
+    const data = parseLimitCookie();
     const count = (data?.date === today ? data.count : 0) + 1;
-    localStorage.setItem(GUEST_LIMIT_KEY, JSON.stringify({ date: today, count }));
+    setLimitCookie(today, count);
   },
 };

@@ -77,6 +77,21 @@ const KO_CITIES: Record<string, string> = {
   // 제주
   제주: 'Jeju', 제주시: 'Jeju',
   서귀포: 'Seogwipo', 서귀포시: 'Seogwipo',
+  // 서울 구 단위
+  강남구: 'Gangnam-gu, Seoul', 강북구: 'Gangbuk-gu, Seoul', 강서구: 'Gangseo-gu, Seoul',
+  강동구: 'Gangdong-gu, Seoul', 관악구: 'Gwanak-gu, Seoul', 광진구: 'Gwangjin-gu, Seoul',
+  구로구: 'Guro-gu, Seoul', 금천구: 'Geumcheon-gu, Seoul', 노원구: 'Nowon-gu, Seoul',
+  도봉구: 'Dobong-gu, Seoul', 동대문구: 'Dongdaemun-gu, Seoul', 동작구: 'Dongjak-gu, Seoul',
+  마포구: 'Mapo-gu, Seoul', 서대문구: 'Seodaemun-gu, Seoul', 서초구: 'Seocho-gu, Seoul',
+  성동구: 'Seongdong-gu, Seoul', 성북구: 'Seongbuk-gu, Seoul', 송파구: 'Songpa-gu, Seoul',
+  양천구: 'Yangcheon-gu, Seoul', 영등포구: 'Yeongdeungpo-gu, Seoul', 용산구: 'Yongsan-gu, Seoul',
+  은평구: 'Eunpyeong-gu, Seoul', 종로구: 'Jongno-gu, Seoul', 중구: 'Jung-gu, Seoul',
+  중랑구: 'Jungnang-gu, Seoul',
+  // 부산 구 단위 (주요)
+  해운대구: 'Haeundae-gu, Busan', 수영구: 'Suyeong-gu, Busan', 남구: 'Nam-gu, Busan',
+  부산진구: 'Busanjin-gu, Busan', 기장군: 'Gijang-gun, Busan',
+  // 인천 구 단위 (주요)
+  연수구: 'Yeonsu-gu, Incheon', 남동구: 'Namdong-gu, Incheon', 미추홀구: 'Michuhol-gu, Incheon',
   // 일본 (한국어 표기 → 영문)
   도쿄: 'Tokyo', 동경: 'Tokyo',
   오사카: 'Osaka',

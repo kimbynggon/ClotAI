@@ -6,6 +6,45 @@ import { useAuth } from '@/contexts/AuthContext';
 import Header from '@/components/common/Header';
 import GuestBanner from '@/components/common/GuestBanner';
 
+const SAMPLE_OUTFITS = [
+  {
+    title: '캐주얼 미니멀',
+    weather: '22°C · 맑음',
+    season: '봄',
+    items: [
+      { label: '상의', value: '화이트 오버사이즈 린넨 셔츠' },
+      { label: '하의', value: '베이지 와이드 슬랙스' },
+      { label: '신발', value: '화이트 캔버스 스니커즈' },
+      { label: '포인트', value: '라탄 버킷백' },
+    ],
+    colors: ['화이트', '베이지', '라이트 탄'],
+  },
+  {
+    title: '모던 윈터',
+    weather: '3°C · 눈 예보',
+    season: '겨울',
+    items: [
+      { label: '상의', value: '크림 터틀넥 니트' },
+      { label: '하의', value: '차콜 울 슬랙스' },
+      { label: '아우터', value: '롱 패딩 점퍼' },
+      { label: '신발', value: '블랙 앵클 부츠' },
+    ],
+    colors: ['크림', '차콜', '네이비'],
+  },
+  {
+    title: '오텀 클래식',
+    weather: '16°C · 흐림',
+    season: '가을',
+    items: [
+      { label: '상의', value: '머스타드 니트 스웨터' },
+      { label: '하의', value: '다크 브라운 슬랙스' },
+      { label: '아우터', value: '카멜 울 블레이저' },
+      { label: '신발', value: '첼시 부츠' },
+    ],
+    colors: ['머스타드', '카멜', '다크 브라운'],
+  },
+];
+
 const FEATURES = [
   {
     icon: '🌤',
@@ -105,6 +144,52 @@ export default function HomePage() {
                 <p className="text-zinc-500 text-sm leading-relaxed">{desc}</p>
               </div>
             ))}
+          </div>
+        </section>
+
+        {/* 샘플 OOTD 섹션 */}
+        <section className="max-w-6xl mx-auto px-6 py-16">
+          <div className="text-center mb-10">
+            <h2 className="text-2xl sm:text-3xl font-bold text-zinc-900 mb-3">
+              AI가 추천한 오늘의 코디
+            </h2>
+            <p className="text-zinc-500 text-sm">날씨·체형·취향을 분석한 실제 추천 예시입니다</p>
+          </div>
+
+          <div className="grid sm:grid-cols-3 gap-4">
+            {SAMPLE_OUTFITS.map((sample) => (
+              <div key={sample.title} className="card p-5 hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-bold text-rose-500 bg-rose-50 px-2.5 py-1 rounded-full border border-rose-100">
+                    {sample.weather}
+                  </span>
+                  <span className="text-xs text-zinc-400 bg-zinc-100 px-2.5 py-1 rounded-full">{sample.season}</span>
+                </div>
+                <p className="text-base font-bold text-zinc-900 mb-3">{sample.title}</p>
+                <div className="space-y-2 mb-4">
+                  {sample.items.map(({ label, value }) => (
+                    <div key={label} className="flex gap-2 text-sm">
+                      <span className="text-zinc-400 w-12 shrink-0 text-xs pt-0.5">{label}</span>
+                      <span className="text-zinc-700 leading-relaxed">{value}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {sample.colors.map((c) => (
+                    <span key={c} className="text-xs px-2.5 py-1 rounded-full border border-zinc-200 text-zinc-500 bg-zinc-50">{c}</span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="text-center mt-8">
+            <Link
+              href={user ? '/recommend' : '/signup'}
+              className="btn-rose px-8 py-3.5 text-sm"
+            >
+              {user ? '내 코디 추천받기' : '무료로 내 코디 받기'}
+            </Link>
           </div>
         </section>
 

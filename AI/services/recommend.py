@@ -5,7 +5,12 @@ import time
 from pathlib import Path
 
 import google.generativeai as genai
-from google.api_core.exceptions import ResourceExhausted
+from google.api_core.exceptions import (
+    ResourceExhausted,
+    PermissionDenied,
+    Unauthenticated,
+    InvalidArgument,
+)
 from schemas.request import RecommendRequest
 
 logger = logging.getLogger(__name__)
@@ -104,11 +109,18 @@ def generate_recommendation(req: RecommendRequest) -> dict:
                 request_options={"timeout": 25},
             )
             break
+        except (PermissionDenied, Unauthenticated) as e:
+            logger.error(f"[recommend] API 키 인증 실패 — Render 환경변수 GOOGLE_API_KEY를 확인하세요. err={e}")
+            raise
+        except InvalidArgument as e:
+            logger.error(f"[recommend] 잘못된 요청 (API 키 형식 오류 가능성) err={e}")
+            raise
         except ResourceExhausted:
             if attempt == 0:
                 logger.warning("[recommend] 429 rate limit — 5초 후 재시도")
                 time.sleep(5)
             else:
+                logger.error("[recommend] 429 rate limit 재시도 실패 — 일일 할당량 초과 가능")
                 raise
 
     raw = response.text.strip()

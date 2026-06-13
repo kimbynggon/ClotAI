@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import Link from 'next/link';
 import LoginForm from '@/components/auth/LoginForm';
 
@@ -14,7 +15,9 @@ export default function LoginPage() {
       >
         ← 홈
       </Link>
-      <LoginForm />
+      <Suspense fallback={<div className="auth-card animate-slide-up h-[500px]" />}>
+        <LoginForm />
+      </Suspense>
     </div>
   );
 }

@@ -14,6 +14,16 @@ import { ProfileService } from '../profile/profile.service';
 import { WeatherResult, WeatherService } from '../weather/weather.service';
 import { RecommendOutfitDto } from './dto/recommend-outfit.dto';
 
+interface AiProfilePayload {
+  gender: string | null;
+  height: number | null;
+  weight: number | null;
+  body_type: string | null;
+  style_tags: string[];
+  color_tags: string[];
+  budget_tier: string | null;
+}
+
 @Injectable()
 export class OutfitService {
   private readonly logger = new Logger(OutfitService.name);
@@ -25,14 +35,21 @@ export class OutfitService {
     private readonly configService: ConfigService,
   ) {}
 
-  warmupAi(): void {
+  async checkAiReady(): Promise<boolean> {
     const aiUrl = this.configService.get<string>('AI_SERVICE_URL', 'http://localhost:8000');
-    this.logger.log(`[warmup] AI 서비스 핑 시작 url=${aiUrl}/health`);
-    fetch(`${aiUrl}/health`, { signal: AbortSignal.timeout(60_000) })
-      .then(() => this.logger.log(`[warmup] AI 서비스 응답 완료 — 슬립 해제`))
-      .catch((err: unknown) =>
-        this.logger.warn(`[warmup] AI 핑 실패 err=${err instanceof Error ? err.message : String(err)}`),
-      );
+    this.logger.log(`[warmup] AI 서비스 health check 시작 url=${aiUrl}/health`);
+    try {
+      const res = await fetch(`${aiUrl}/health`, { signal: AbortSignal.timeout(65_000) });
+      if (res.ok) {
+        this.logger.log('[warmup] AI 서비스 응답 완료 — 슬립 해제');
+        return true;
+      }
+      this.logger.warn(`[warmup] AI 서비스 비정상 응답 status=${res.status}`);
+      return false;
+    } catch (err: unknown) {
+      this.logger.warn(`[warmup] AI 핑 실패 err=${err instanceof Error ? err.message : String(err)}`);
+      return false;
+    }
   }
 
   async recommend(userId: number, dto: RecommendOutfitDto) {
@@ -66,7 +83,7 @@ export class OutfitService {
     let aiResult: Record<string, unknown>;
     let isFallback = false;
     try {
-      aiResult = await this.callAiService(profile, weather);
+      aiResult = await this.callAiService(this.buildProfilePayload(profile), weather);
       this.logger.log(`[recommend] AI 서비스 응답 완료`);
     } catch {
       this.logger.warn(`[recommend] AI 서비스 실패 — 기본 추천 반환`);
@@ -87,6 +104,35 @@ export class OutfitService {
     });
 
     return this.formatOutfit(outfit, aiResult, weather, false);
+  }
+
+  async guestRecommend(dto: RecommendOutfitDto) {
+    this.logger.log('[guestRecommend] 게스트 추천 시작');
+
+    const weather = await this.resolveWeather(dto);
+
+    const guestProfile: AiProfilePayload = {
+      gender: null,
+      height: null,
+      weight: null,
+      body_type: null,
+      style_tags: ['캐주얼'],
+      color_tags: ['화이트', '베이지'],
+      budget_tier: null,
+    };
+
+    let aiResult: Record<string, unknown>;
+    let isFallback = false;
+    try {
+      aiResult = await this.callAiService(guestProfile, weather);
+      this.logger.log('[guestRecommend] AI 서비스 응답 완료');
+    } catch {
+      this.logger.warn('[guestRecommend] AI 서비스 실패 — 기본 추천 반환');
+      aiResult = this.buildFallbackRecommendation(weather);
+      isFallback = true;
+    }
+
+    return this.formatOutfit({ id: 0, createdAt: new Date() }, aiResult, weather, isFallback);
   }
 
   async getHistory(userId: number) {
@@ -131,22 +177,26 @@ export class OutfitService {
     throw new BadRequestException('city 또는 lat/lon 중 하나를 입력해주세요.');
   }
 
+  private buildProfilePayload(profile: Profile): AiProfilePayload {
+    return {
+      gender: profile.gender,
+      height: profile.height,
+      weight: profile.weight,
+      body_type: profile.bodyType,
+      style_tags: (profile.styleTags as string[]) ?? [],
+      color_tags: (profile.colorTags as string[]) ?? [],
+      budget_tier: profile.budgetTier,
+    };
+  }
+
   private async callAiService(
-    profile: Profile,
+    profilePayload: AiProfilePayload,
     weather: WeatherResult,
   ): Promise<Record<string, unknown>> {
     const aiUrl = this.configService.get<string>('AI_SERVICE_URL', 'http://localhost:8000');
 
     const payload = {
-      profile: {
-        gender: profile.gender,
-        height: profile.height,
-        weight: profile.weight,
-        body_type: profile.bodyType,
-        style_tags: profile.styleTags,
-        color_tags: profile.colorTags,
-        budget_tier: profile.budgetTier,
-      },
+      profile: profilePayload,
       weather: {
         temperature: weather.temperature,
         feels_like: weather.feelsLike,
@@ -166,7 +216,7 @@ export class OutfitService {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(20_000),
+        signal: AbortSignal.timeout(55_000),
       });
     } catch (err) {
       this.logger.error(`[recommend] AI 서비스 연결 실패 url=${aiUrl}/recommend`, err instanceof Error ? err.message : String(err));
@@ -175,8 +225,12 @@ export class OutfitService {
 
     if (!res.ok) {
       const detail = await res.text().catch(() => '');
-      this.logger.error(`[recommend] AI 서비스 오류 status=${res.status} detail=${detail.slice(0, 200)}`);
       const isHtmlResponse = detail.trimStart().startsWith('<!');
+      if (res.status === 401) {
+        this.logger.error(`[recommend] AI GOOGLE_API_KEY 인증 실패 — Render 환경변수 확인 필요 detail=${detail.slice(0, 200)}`);
+      } else {
+        this.logger.error(`[recommend] AI 서비스 오류 status=${res.status} detail=${detail.slice(0, 200)}`);
+      }
       throw new InternalServerErrorException(
         isHtmlResponse ? 'AI 서비스 미가용' : `AI 추천 실패: ${detail}`,
       );

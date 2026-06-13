@@ -1,5 +1,6 @@
 import logging
 from fastapi import APIRouter, HTTPException
+from google.api_core.exceptions import PermissionDenied, Unauthenticated, InvalidArgument, ResourceExhausted
 from schemas.request import RecommendRequest
 from schemas.response import RecommendResponse
 from services.recommend import generate_recommendation
@@ -15,6 +16,12 @@ async def recommend(req: RecommendRequest):
         result = generate_recommendation(req)
         logger.info("[recommend] Gemini 응답 완료")
         return result
+    except (PermissionDenied, Unauthenticated):
+        raise HTTPException(status_code=401, detail="GOOGLE_API_KEY 인증 실패 — Render 환경변수를 확인하세요")
+    except InvalidArgument as e:
+        raise HTTPException(status_code=400, detail=f"API 키 형식 오류: {str(e)}")
+    except ResourceExhausted:
+        raise HTTPException(status_code=429, detail="Too Many Requests")
     except HTTPException:
         raise
     except Exception as e:

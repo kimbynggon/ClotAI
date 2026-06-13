@@ -28,7 +28,7 @@ api.interceptors.response.use(
       if (hadToken) {
         // AuthContext에 세션 만료 알림 → user state 초기화
         window.dispatchEvent(new CustomEvent('clotai:unauthorized'));
-        window.location.href = '/login';
+        window.location.href = '/login?expired=1';
       }
     }
     return Promise.reject(err);
@@ -86,7 +86,12 @@ const realWeatherAPI = {
 
 const realOutfitAPI = {
   warmup: async () => {
-    try { await api.post('/api/outfit/warmup'); } catch { /* 무시 */ }
+    try {
+      const res = await api.post('/api/outfit/warmup');
+      return res.data.data?.aiReady === true;
+    } catch {
+      return false;
+    }
   },
   recommend: async (data) => {
     const res = await api.post('/api/outfit/recommend', data);
@@ -98,6 +103,13 @@ const realOutfitAPI = {
   },
   getOne: async (id) => {
     const res = await api.get(`/api/outfit/${id}`);
+    return { data: res.data.data };
+  },
+};
+
+export const guestOutfitAPI = {
+  recommend: async (data) => {
+    const res = await api.post('/api/outfit/guest/recommend', data);
     return { data: res.data.data };
   },
 };

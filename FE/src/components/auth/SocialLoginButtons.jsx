@@ -1,10 +1,37 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
+function isInAppBrowser() {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent;
+  return /KAKAOTALK|Instagram|FBAN|FBAV|Line\/|Twitter|Snapchat|Pinterest|TikTok/i.test(ua);
+}
+
 export default function SocialLoginButtons() {
+  const [inApp, setInApp] = useState(false);
+
+  useEffect(() => {
+    setInApp(isInAppBrowser());
+  }, []);
+
   return (
     <div className="space-y-3">
+      {inApp && (
+        <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-700">
+          <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span>
+            <strong>인앱 브라우저에서는 소셜 로그인이 제한됩니다.</strong><br />
+            우측 상단 메뉴(···) → <strong>기본 브라우저로 열기</strong>를 선택하신 후 이용해주세요.
+          </span>
+        </div>
+      )}
+
       <a
         href={`${API_URL}/api/auth/google`}
         className="flex items-center justify-center gap-3 w-full py-3 px-4 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-50 transition-colors text-sm font-medium text-zinc-700"

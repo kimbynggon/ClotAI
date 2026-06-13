@@ -71,20 +71,22 @@ function successResponse(dataSchema: object, description: string) {
 }
 
 @ApiTags('Outfit')
-@ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
 @Controller('outfit')
 export class OutfitController {
   constructor(private readonly outfitService: OutfitService) {}
 
   @Post('warmup')
-  @ApiOperation({ summary: 'AI 서비스 슬립 해제 워밍업', description: '페이지 진입 시 AI 서비스 cold start 방지용 핑. 즉시 반환.' })
-  warmup() {
-    this.outfitService.warmupAi();
-    return { success: true, message: 'AI 서비스 워밍업을 시작했습니다.', data: null };
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'AI 서비스 슬립 해제 워밍업', description: 'AI 서비스가 응답할 때까지 대기 후 반환. aiReady로 준비 여부 확인.' })
+  async warmup() {
+    const aiReady = await this.outfitService.checkAiReady();
+    return { success: true, message: aiReady ? 'AI 서비스 준비 완료' : 'AI 서비스 응답 없음', data: { aiReady } };
   }
 
   @Post('recommend')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'AI OOTD 추천',
     description: '`city` 또는 `lat+lon` 중 하나 필수. 프로필 등록 필요.',
@@ -97,7 +99,21 @@ export class OutfitController {
     return { success: true, message: 'OOTD 추천이 완료되었습니다.', data };
   }
 
+  @Post('guest/recommend')
+  @ApiOperation({
+    summary: '게스트 AI OOTD 추천 (인증 불필요)',
+    description: '로그인 없이 이용 가능. 결과는 저장되지 않습니다. 횟수 제한은 클라이언트 쿠키로 관리.',
+  })
+  @ApiResponse({ status: 201, ...successResponse(OutfitDetailSchema, '게스트 AI 추천 완료') })
+  @ApiResponse({ status: 400, description: '위치 정보 누락' })
+  async guestRecommend(@Body() dto: RecommendOutfitDto) {
+    const data = await this.outfitService.guestRecommend(dto);
+    return { success: true, message: 'OOTD 추천이 완료되었습니다.', data };
+  }
+
   @Get('history')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: '추천 이력 조회', description: '최근 20건 내림차순 반환' })
   @ApiResponse({
     status: 200,
@@ -109,6 +125,8 @@ export class OutfitController {
   }
 
   @Get(':id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: '추천 상세 조회' })
   @ApiParam({ name: 'id', description: '추천 ID', example: 1 })
   @ApiResponse({ status: 200, ...successResponse(OutfitDetailSchema, '조회 성공') })
