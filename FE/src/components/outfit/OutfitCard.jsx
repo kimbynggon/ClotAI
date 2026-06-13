@@ -15,7 +15,7 @@ const OUTFIT_FIELDS = [
 ];
 
 function formatDate(isoString) {
-  return new Date(isoString).toISOString().slice(2, 10); // "26-06-10"
+  return new Date(isoString).toISOString().slice(0, 10); // "2026-06-14"
 }
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
@@ -23,7 +23,6 @@ const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 function formatCachedAt(isoString) {
   const d = new Date(isoString);
   const min = d.getMinutes();
-  // 30분 단위 내림: 0~29분 → 0분, 30~59분 → 30분
   d.setMinutes(min < 30 ? 0 : 30, 0, 0);
   const day = DAY_NAMES[d.getDay()];
   const time = d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -91,6 +90,8 @@ export default function OutfitCard({
     }
   };
 
+  const seasonLabel = SEASON_LABEL[weather?.season] ?? weather?.season;
+
   return (
     <div className="space-y-3">
       {/* fallback 안내 배너 */}
@@ -111,120 +112,106 @@ export default function OutfitCard({
         </div>
       )}
 
-      {/* 헤더: 공유버튼 | 날씨 요약 | 즐겨찾기+날짜 */}
-      <div className="card px-4 py-3 flex items-center gap-3">
-        {/* 왼쪽: 공유 버튼 + 미리보기 배지 */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          {showActions && (
-            <button
-              onClick={handleCopy}
-              className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors"
-              title="공유"
-            >
-              {copied ? (
-                <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              ) : (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                </svg>
-              )}
-            </button>
-          )}
-          {isPreview && (
-            <span className="text-xs text-zinc-400 bg-zinc-100 px-2 py-0.5 rounded-full whitespace-nowrap">
-              미리보기
-            </span>
-          )}
-        </div>
+      {/* 헤더 카드: 날씨 + 링크 + 날짜 */}
+      <div className="card px-4 py-4 space-y-2">
+        {/* 도시이름 */}
+        {weather?.city && (
+          <p className="text-sm font-bold text-zinc-900">{weather.city}</p>
+        )}
 
-        {/* 가운데: 날씨 핵심 데이터 */}
-        <div className="flex-1 flex items-center gap-2 min-w-0 overflow-hidden">
-          {weather?.city && (
-            <span className="text-xs font-semibold text-zinc-600 truncate shrink-0 max-w-[5rem]">
-              {weather.city}
-            </span>
-          )}
-          <span className="text-xs font-bold text-zinc-900 shrink-0">{weather?.temperature}°C</span>
-          <span className="text-xs text-zinc-500 truncate">{weather?.weatherDescription}</span>
-          {weather?.feelsLike !== undefined && (
-            <span className="text-xs text-zinc-400 shrink-0 hidden sm:inline">체감 {weather.feelsLike}°C</span>
-          )}
-          {weather?.isRaining && <span className="text-blue-500 text-xs shrink-0">🌂</span>}
-          {weather?.isSnowing && <span className="text-sky-400 text-xs shrink-0">❄️</span>}
-        </div>
-
-        {/* 오른쪽: 즐겨찾기 + 날짜 */}
-        <div className="flex items-center gap-1 shrink-0">
-          {showActions && isGuest && (
-            <Link
-              href="/login"
-              className="text-xs text-zinc-400 hover:text-rose-500 transition-colors border border-zinc-200 hover:border-rose-300 rounded-lg px-2 py-1 whitespace-nowrap"
-              title="로그인하면 즐겨찾기 저장 가능"
-            >
-              ♡ 저장
-            </Link>
-          )}
-          {showActions && showFavorite && !isGuest && id !== 0 && (
-            <button
-              onClick={handleFavorite}
-              disabled={favoriteLoading}
-              className={`p-1.5 rounded-lg transition-colors ${
-                isFavorited
-                  ? 'text-rose-500 hover:text-rose-600'
-                  : 'text-zinc-400 hover:text-rose-400 hover:bg-zinc-100'
-              }`}
-              title={isFavorited ? '즐겨찾기 삭제' : '즐겨찾기 추가'}
-            >
-              <svg className="w-4 h-4" fill={isFavorited ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-              </svg>
-            </button>
-          )}
-          <span className="text-xs font-mono text-zinc-400 ml-1">
-            {formatDate(createdAt)}
-          </span>
-        </div>
-      </div>
-
-      {/* 스타일 키워드 + 날씨 요약 */}
-      <div className="card p-5">
-        <div className="flex items-start justify-between gap-3 mb-3">
-          <span className="text-lg font-bold text-zinc-900">{styleKeyword}</span>
-          <span className="shrink-0 text-xs text-zinc-500 bg-zinc-100 px-3 py-1 rounded-full">
-            {SEASON_LABEL[weather?.season] ?? weather?.season}
-          </span>
-        </div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-zinc-500">
-          {weather?.city && <span className="font-medium text-zinc-700">{weather.city}</span>}
+        {/* 날씨 데이터 */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-zinc-600">
           <span className="font-bold text-zinc-900">{weather?.temperature}°C</span>
           <span>{weather?.weatherDescription}</span>
           {weather?.feelsLike !== undefined && (
-            <span className="text-xs text-zinc-400">체감 {weather.feelsLike}°C</span>
+            <span className="text-zinc-500">체감 {weather.feelsLike}°C</span>
           )}
-          {weather?.isRaining && <span className="text-blue-500 text-xs font-semibold">🌂 우산 필요</span>}
-          {weather?.isSnowing && <span className="text-sky-400 text-xs font-semibold">❄️ 눈 예보</span>}
-        </div>
-        {/* 상세 날씨 정보 */}
-        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
           {weather?.humidity !== undefined && (
-            <span className="text-xs text-zinc-400">습도 {weather.humidity}%</span>
+            <span className="text-zinc-500">습도 {weather.humidity}%</span>
           )}
           {weather?.windSpeed !== undefined && (
-            <span className="text-xs text-zinc-400">풍속 {weather.windSpeed}km/h</span>
+            <span className="text-zinc-500">풍속 {weather.windSpeed}km/h</span>
           )}
-          {weather?.precipitation !== undefined && weather.precipitation > 0 && (
-            <span className="text-xs text-zinc-400">강수량 {weather.precipitation}mm</span>
-          )}
+          {weather?.isRaining && <span className="text-blue-500">🌂</span>}
+          {weather?.isSnowing && <span className="text-sky-400">❄️</span>}
         </div>
+
+        {/* 날씨 기준 시간 */}
         {weather?.cachedAt && (
-          <p className="text-xs text-zinc-300 mt-2">
+          <p className="text-xs text-zinc-400">
             날씨 기준 {formatCachedAt(weather.cachedAt)}
           </p>
         )}
+
+        {/* 구분선 */}
+        <div className="border-t border-zinc-100 pt-2 flex items-center justify-between">
+          {/* 링크(공유) + 미리보기 배지 */}
+          <div className="flex items-center gap-1.5">
+            {showActions && (
+              <button
+                onClick={handleCopy}
+                className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors"
+                title="공유"
+              >
+                {copied ? (
+                  <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                  </svg>
+                )}
+              </button>
+            )}
+            {isPreview && (
+              <span className="text-xs text-zinc-400 bg-zinc-100 px-2 py-0.5 rounded-full">
+                미리보기
+              </span>
+            )}
+          </div>
+
+          {/* 즐겨찾기 + 날짜 */}
+          <div className="flex items-center gap-1.5">
+            {showActions && isGuest && (
+              <Link
+                href="/login"
+                className="text-xs text-zinc-400 hover:text-rose-500 transition-colors border border-zinc-200 hover:border-rose-300 rounded-lg px-2 py-1 whitespace-nowrap"
+                title="로그인하면 즐겨찾기 저장 가능"
+              >
+                ♡ 저장
+              </Link>
+            )}
+            {showActions && showFavorite && !isGuest && id !== 0 && (
+              <button
+                onClick={handleFavorite}
+                disabled={favoriteLoading}
+                className={`p-1.5 rounded-lg transition-colors ${
+                  isFavorited
+                    ? 'text-rose-500 hover:text-rose-600'
+                    : 'text-zinc-400 hover:text-rose-400 hover:bg-zinc-100'
+                }`}
+                title={isFavorited ? '즐겨찾기 삭제' : '즐겨찾기 추가'}
+              >
+                <svg className="w-4 h-4" fill={isFavorited ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                </svg>
+              </button>
+            )}
+            <span className="text-xs font-mono text-zinc-400">
+              {formatDate(createdAt)}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* 스타일 키워드 + 시즌 */}
+      <div className="card p-5">
+        <span className="text-lg font-bold text-zinc-900">
+          {styleKeyword}{seasonLabel ? `, ${seasonLabel}` : ''}
+        </span>
       </div>
 
       {/* 컬러 팔레트 */}

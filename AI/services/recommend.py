@@ -83,7 +83,7 @@ def generate_recommendation(req: RecommendRequest) -> dict:
         logger.error("[recommend] GOOGLE_API_KEY 환경변수가 설정되지 않았습니다!")
         raise RuntimeError("GOOGLE_API_KEY가 설정되지 않았습니다.")
 
-    model_name = os.environ.get("AI_MODEL", "gemini-2.0-flash")
+    model_name = os.environ.get("AI_MODEL", "gemini-1.5-flash-8b")
     logger.info(f"[recommend] 모델 호출 시작 model={model_name} key_prefix={api_key[:6]}")
 
     client = genai.Client(
