@@ -35,6 +35,14 @@ VALID_MODELS = {
     "gemini-1.5-pro",
 }
 
+# quota 소진 시 순서대로 폴백 (모델별 독립 quota pool)
+FALLBACK_MODELS = [
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-8b",
+]
+
 
 def _build_client(api_key: str) -> genai.Client:
     """API 키 형식에 따라 적합한 genai.Client를 반환한다.
@@ -142,25 +150,26 @@ def generate_recommendation(req: RecommendRequest) -> dict:
             "AQ.(OAuth 토큰) 또는 AIza(API Key) 형식이어야 합니다."
         )
 
-    # ── 모델 진단 ────────────────────────────────────────────────────
-    model_name = os.environ.get("AI_MODEL", "gemini-2.0-flash")
-    if model_name not in VALID_MODELS:
+    # ── 모델 폴백 체인 구성 ──────────────────────────────────────────
+    primary_model = os.environ.get("AI_MODEL", "gemini-2.0-flash")
+    if primary_model not in VALID_MODELS:
         logger.warning(
-            f"[recommend][DIAG] 알 수 없는 모델명 model={model_name} — "
-            f"지원 목록: {sorted(VALID_MODELS)} "
-            "잘못된 모델명이면 404/400이 발생할 수 있습니다."
+            f"[recommend][DIAG] 알 수 없는 모델명 model={primary_model} — "
+            f"지원 목록: {sorted(VALID_MODELS)}"
         )
-    logger.info(f"[recommend][DIAG] 사용 모델={model_name}")
+
+    # 환경변수 모델을 선두로, 나머지 폴백 모델을 중복 없이 이어붙임
+    model_chain = [primary_model] + [m for m in FALLBACK_MODELS if m != primary_model]
+    logger.info(f"[recommend][DIAG] 모델 폴백 체인={model_chain}")
 
     client = _build_client(api_key)
 
     system_prompt = _load_prompt("system_prompt.txt")
     user_message = _build_message(req)
 
-    max_attempts = 2
     response = None
-    for attempt in range(max_attempts):
-        logger.info(f"[recommend] Gemini 호출 attempt={attempt + 1}/{max_attempts} model={model_name}")
+    for model_name in model_chain:
+        logger.info(f"[recommend] Gemini 호출 model={model_name}")
         try:
             response = client.models.generate_content(
                 model=model_name,
@@ -170,74 +179,68 @@ def generate_recommendation(req: RecommendRequest) -> dict:
                     max_output_tokens=1024,
                 ),
             )
-            logger.info(f"[recommend] Gemini 호출 성공 attempt={attempt + 1}")
+            logger.info(f"[recommend] Gemini 호출 성공 model={model_name}")
             break
         except ClientError as e:
             status = getattr(e, "status_code", 0)
             error_msg = str(e)
             logger.error(
-                f"[recommend] ClientError attempt={attempt + 1}/{max_attempts} "
-                f"status={status} msg={error_msg[:500]}"
+                f"[recommend] ClientError model={model_name} "
+                f"status={status} msg={error_msg[:300]}"
             )
 
             if status == 429:
                 cause = _classify_429(error_msg)
-                logger.error(f"[recommend][DIAG] 429 원인 분류={cause}")
-                if cause == "DAILY_QUOTA_EXHAUSTED":
+                logger.error(f"[recommend][DIAG] 429 원인={cause} model={model_name}")
+
+                if cause in ("DAILY_QUOTA_EXHAUSTED", "FREE_TIER_QUOTA_EXHAUSTED", "QUOTA_EXHAUSTED"):
+                    if model_name != model_chain[-1]:
+                        next_model = model_chain[model_chain.index(model_name) + 1]
+                        logger.warning(
+                            f"[recommend][DIAG] quota 소진 — 다음 모델로 폴백 "
+                            f"{model_name} → {next_model}"
+                        )
+                        continue
                     logger.error(
-                        "[recommend][DIAG] 일일 할당량 소진 — 재시도 무의미. "
-                        "Google AI Studio(aistudio.google.com)에서 사용량 확인 및 결제 설정 필요"
+                        "[recommend][DIAG] 모든 모델 quota 소진 — "
+                        "내일 UTC 00:00 이후 리셋 또는 Google Cloud 결제 설정 필요"
                     )
                     raise
-                elif cause == "FREE_TIER_QUOTA_EXHAUSTED":
-                    logger.error(
-                        "[recommend][DIAG] 무료 티어 할당량 소진 — "
-                        "당일 재시도 불가. 내일 UTC 00:00 이후 리셋됩니다."
-                    )
-                    raise
+
                 elif cause == "RATE_LIMIT_PER_MINUTE":
-                    logger.warning(
-                        f"[recommend][DIAG] 분당 rate limit — "
-                        f"attempt={attempt + 1}: {'5초 후 재시도' if attempt == 0 else '최종 실패'}"
-                    )
-                    if attempt == 0:
-                        time.sleep(5)
-                        continue
-                    raise
+                    logger.warning(f"[recommend][DIAG] 분당 rate limit model={model_name} — 5초 후 재시도")
+                    time.sleep(5)
+                    continue
+
                 else:
-                    if attempt == 0:
-                        logger.warning("[recommend] 429 — 5초 후 재시도")
-                        time.sleep(5)
-                        continue
-                    logger.error("[recommend] 429 재시도 최종 실패")
-                    raise
+                    logger.warning(f"[recommend] 429 unknown — 5초 후 재시도 model={model_name}")
+                    time.sleep(5)
+                    continue
 
             elif status in (401, 403):
                 if api_key.startswith("AQ."):
                     logger.error(
                         f"[recommend][DIAG] 인증 실패 status={status} (AQ. OAuth 토큰) — "
-                        "AQ. 토큰은 약 1시간 후 만료됩니다. "
-                        "서버 재시작 또는 Render 환경변수에 새 토큰을 등록하세요."
+                        "AQ. 토큰이 만료되었습니다. Render 환경변수에 새 토큰을 등록하세요."
                     )
                 else:
                     logger.error(
                         f"[recommend][DIAG] 인증 실패 status={status} — "
-                        "API 키가 잘못되었거나 비활성화됨. Render 환경변수 GOOGLE_API_KEY 재확인 필요"
+                        "GOOGLE_API_KEY 재확인 필요"
                     )
                 raise
 
             elif status == 404:
                 logger.error(
-                    f"[recommend][DIAG] 모델 없음 status=404 model={model_name} — "
-                    "모델명 오타 또는 해당 리전에서 미지원"
+                    f"[recommend][DIAG] 모델 없음 status=404 model={model_name} — 다음 모델로 폴백"
                 )
-                raise
+                continue
 
             else:
                 raise
 
     if response is None:
-        raise RuntimeError("Gemini 응답 없음 — 모든 재시도 실패")
+        raise RuntimeError("Gemini 응답 없음 — 모든 모델 폴백 실패")
 
     # ── 응답 원문 로그 ───────────────────────────────────────────────
     raw = response.text.strip() if response.text else ""
