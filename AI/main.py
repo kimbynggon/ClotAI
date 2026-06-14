@@ -10,16 +10,22 @@ from routers import outfit
 
 load_dotenv()
 
-# Render 등 컨테이너 환경에서 버퍼링 없이 즉시 출력
-sys.stdout.reconfigure(line_buffering=True)  # type: ignore[attr-defined]
-sys.stderr.reconfigure(line_buffering=True)  # type: ignore[attr-defined]
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
-    stream=sys.stdout,
-    force=True,
+class _FlushHandler(logging.StreamHandler):
+    """emit 직후 즉시 flush — Render 컨테이너 버퍼링 방지"""
+
+    def emit(self, record: logging.LogRecord) -> None:
+        super().emit(record)
+        self.flush()
+
+
+_handler = _FlushHandler(sys.stdout)
+_handler.setFormatter(
+    logging.Formatter("%(asctime)s [%(levelname)s] %(name)s — %(message)s")
 )
+logging.root.setLevel(logging.INFO)
+logging.root.handlers = [_handler]
+
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="ClotAI - AI Service", version="1.0.0")
