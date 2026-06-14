@@ -1,6 +1,6 @@
 import logging
 from fastapi import APIRouter, HTTPException
-from google.genai.errors import ClientError
+from openai import AuthenticationError, RateLimitError
 from schemas.request import RecommendRequest
 from schemas.response import RecommendResponse
 from services.recommend import generate_recommendation
@@ -12,21 +12,14 @@ router = APIRouter()
 @router.post("/recommend", response_model=RecommendResponse)
 async def recommend(req: RecommendRequest):
     try:
-        logger.info("[recommend] 요청 수신 — Gemini 호출 시작")
+        logger.info("[recommend] 요청 수신 — OpenRouter 호출 시작")
         result = generate_recommendation(req)
-        logger.info("[recommend] Gemini 응답 완료")
+        logger.info("[recommend] OpenRouter 응답 완료")
         return result
-    except ClientError as e:
-        status = getattr(e, "status_code", 0)
-        msg = str(e)
-        logger.error(f"[recommend] ClientError status={status} msg={msg}")
-        if status in (401, 403):
-            raise HTTPException(status_code=401, detail=f"Google API 인증 실패: {msg}")
-        elif status == 400:
-            raise HTTPException(status_code=400, detail=f"API 요청 오류: {msg}")
-        elif status == 429:
-            raise HTTPException(status_code=429, detail="Too Many Requests")
-        raise HTTPException(status_code=500, detail=f"AI 추천 실패: {msg}")
+    except AuthenticationError as e:
+        raise HTTPException(status_code=401, detail=f"OpenRouter API 인증 실패: {str(e)}")
+    except RateLimitError as e:
+        raise HTTPException(status_code=429, detail="OpenRouter 요청 한도 초과, 잠시 후 다시 시도해주세요.")
     except HTTPException:
         raise
     except Exception as e:

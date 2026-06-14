@@ -4,10 +4,7 @@ import os
 import time
 from pathlib import Path
 
-from google import genai
-from google.genai import types
-from google.genai.errors import ClientError
-from google.oauth2.credentials import Credentials
+from openai import AuthenticationError, BadRequestError, OpenAI, RateLimitError
 
 from schemas.request import RecommendRequest
 
@@ -26,55 +23,12 @@ BODY_TYPE_MAP = {
 BUDGET_MAP = {"low": "저가 (3만원 이하)", "mid": "중가 (3~10만원)", "high": "고가 (10만원 이상)"}
 SEASON_MAP = {"spring": "봄", "summer": "여름", "autumn": "가을", "winter": "겨울"}
 
-# 지원 모델 목록 (무료 티어 기준 최신순)
-VALID_MODELS = {
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gemini-1.5-flash",
-    "gemini-1.5-flash-8b",
-    "gemini-1.5-pro",
-}
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
-# quota 소진 시 순서대로 폴백 (모델별 독립 quota pool)
 FALLBACK_MODELS = [
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gemini-1.5-flash",
-    "gemini-1.5-flash-8b",
+    "meta-llama/llama-3.3-70b-instruct:free",
+    "meta-llama/llama-3.1-8b-instruct:free",
 ]
-
-
-def _build_client(api_key: str) -> genai.Client:
-    """API 키 형식에 따라 적합한 genai.Client를 반환한다.
-
-    AQ. 형식  → Google OAuth 2.0 액세스 토큰 (Bearer 헤더 방식)
-    AIza 형식 → 정적 API Key (?key= 쿼리 파라미터 방식)
-    """
-    http_opts = types.HttpOptions(timeout=50000)
-    if api_key.startswith("AQ."):
-        logger.info(
-            "[recommend][DIAG] AQ. 형식 토큰 감지 — "
-            "OAuth Credentials(Bearer) 방식으로 Gemini 클라이언트 생성"
-        )
-        creds = Credentials(token=api_key)
-        return genai.Client(credentials=creds, http_options=http_opts)
-
-    logger.info("[recommend][DIAG] AIza 형식 API Key — ?key= 쿼리 방식으로 Gemini 클라이언트 생성")
-    return genai.Client(api_key=api_key, http_options=http_opts)
-
-
-def _classify_429(error_msg: str) -> str:
-    """429 에러 메시지를 분석해 원인을 반환한다."""
-    msg_lower = error_msg.lower()
-    if "per_day" in msg_lower or "per day" in msg_lower or "daily" in msg_lower:
-        return "DAILY_QUOTA_EXHAUSTED"
-    if "free_tier" in msg_lower or "free tier" in msg_lower:
-        return "FREE_TIER_QUOTA_EXHAUSTED"
-    if "per_minute" in msg_lower or "per minute" in msg_lower:
-        return "RATE_LIMIT_PER_MINUTE"
-    if "resource_exhausted" in msg_lower:
-        return "QUOTA_EXHAUSTED"
-    return "RATE_LIMIT_UNKNOWN"
 
 JSON_SCHEMA = """
 다음 JSON 형식으로만 응답하세요 (코드블록 없이 순수 JSON):
@@ -129,126 +83,66 @@ def _build_message(req: RecommendRequest) -> str:
 
 
 def generate_recommendation(req: RecommendRequest) -> dict:
-    # ── API 키 진단 ──────────────────────────────────────────────────
-    api_key = os.environ.get("GOOGLE_API_KEY", "")
+    api_key = os.environ.get("OPENROUTER_API_KEY", "")
     if not api_key:
-        logger.error("[recommend][DIAG] GOOGLE_API_KEY 환경변수 누락 — Render 환경변수 확인 필요")
-        raise RuntimeError("GOOGLE_API_KEY가 설정되지 않았습니다.")
+        logger.error("[recommend] OPENROUTER_API_KEY 환경변수 누락")
+        raise RuntimeError("OPENROUTER_API_KEY가 설정되지 않았습니다.")
 
-    key_prefix = api_key[:8] if len(api_key) >= 8 else api_key
-    key_len = len(api_key)
-    is_oauth_token = api_key.startswith("AQ.")
-    is_api_key = api_key.startswith("AIza")
-    logger.info(
-        f"[recommend][DIAG] API 키 로드 완료 "
-        f"prefix={key_prefix}... length={key_len} "
-        f"type={'OAuth-AQ' if is_oauth_token else 'APIKey-AIza' if is_api_key else 'UNKNOWN'}"
-    )
-    if not is_oauth_token and not is_api_key:
-        logger.warning(
-            "[recommend][DIAG] 알 수 없는 키 형식 — "
-            "AQ.(OAuth 토큰) 또는 AIza(API Key) 형식이어야 합니다."
-        )
-
-    # ── 모델 폴백 체인 구성 ──────────────────────────────────────────
-    primary_model = os.environ.get("AI_MODEL", "gemini-2.0-flash")
-    if primary_model not in VALID_MODELS:
-        logger.warning(
-            f"[recommend][DIAG] 알 수 없는 모델명 model={primary_model} — "
-            f"지원 목록: {sorted(VALID_MODELS)}"
-        )
-
-    # 환경변수 모델을 선두로, 나머지 폴백 모델을 중복 없이 이어붙임
+    primary_model = os.environ.get("AI_MODEL", FALLBACK_MODELS[0])
     model_chain = [primary_model] + [m for m in FALLBACK_MODELS if m != primary_model]
-    logger.info(f"[recommend][DIAG] 모델 폴백 체인={model_chain}")
+    logger.info(f"[recommend] 모델 폴백 체인={model_chain}")
 
-    client = _build_client(api_key)
+    client = OpenAI(
+        api_key=api_key,
+        base_url=OPENROUTER_BASE_URL,
+    )
 
     system_prompt = _load_prompt("system_prompt.txt")
     user_message = _build_message(req)
 
-    response = None
-    for model_name in model_chain:
-        logger.info(f"[recommend] Gemini 호출 model={model_name}")
+    raw = ""
+    for attempt, model_name in enumerate(model_chain):
+        logger.info(f"[recommend] OpenRouter 호출 model={model_name} attempt={attempt + 1}")
         try:
-            response = client.models.generate_content(
+            response = client.chat.completions.create(
                 model=model_name,
-                contents=user_message,
-                config=types.GenerateContentConfig(
-                    system_instruction=system_prompt,
-                    max_output_tokens=1024,
-                ),
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_message},
+                ],
+                max_tokens=1024,
             )
-            logger.info(f"[recommend] Gemini 호출 성공 model={model_name}")
+            raw = response.choices[0].message.content or ""
+            logger.info(f"[recommend] 응답 완료 model={model_name} length={len(raw)}")
             break
-        except ClientError as e:
-            status = getattr(e, "status_code", 0)
-            error_msg = str(e)
-            logger.error(
-                f"[recommend] ClientError model={model_name} "
-                f"status={status} msg={error_msg[:300]}"
-            )
 
-            if status == 429:
-                cause = _classify_429(error_msg)
-                logger.error(f"[recommend][DIAG] 429 원인={cause} model={model_name}")
-
-                if cause in ("DAILY_QUOTA_EXHAUSTED", "FREE_TIER_QUOTA_EXHAUSTED", "QUOTA_EXHAUSTED"):
-                    if model_name != model_chain[-1]:
-                        next_model = model_chain[model_chain.index(model_name) + 1]
-                        logger.warning(
-                            f"[recommend][DIAG] quota 소진 — 다음 모델로 폴백 "
-                            f"{model_name} → {next_model}"
-                        )
-                        continue
-                    logger.error(
-                        "[recommend][DIAG] 모든 모델 quota 소진 — "
-                        "내일 UTC 00:00 이후 리셋 또는 Google Cloud 결제 설정 필요"
-                    )
-                    raise
-
-                elif cause == "RATE_LIMIT_PER_MINUTE":
-                    logger.warning(f"[recommend][DIAG] 분당 rate limit model={model_name} — 5초 후 재시도")
-                    time.sleep(5)
-                    continue
-
-                else:
-                    logger.warning(f"[recommend] 429 unknown — 5초 후 재시도 model={model_name}")
-                    time.sleep(5)
-                    continue
-
-            elif status in (401, 403):
-                if api_key.startswith("AQ."):
-                    logger.error(
-                        f"[recommend][DIAG] 인증 실패 status={status} (AQ. OAuth 토큰) — "
-                        "AQ. 토큰이 만료되었습니다. Render 환경변수에 새 토큰을 등록하세요."
-                    )
-                else:
-                    logger.error(
-                        f"[recommend][DIAG] 인증 실패 status={status} — "
-                        "GOOGLE_API_KEY 재확인 필요"
-                    )
-                raise
-
-            elif status == 404:
-                logger.error(
-                    f"[recommend][DIAG] 모델 없음 status=404 model={model_name} — 다음 모델로 폴백"
-                )
+        except RateLimitError as e:
+            wait = 2 ** attempt  # 지수 백오프: 1초 → 2초 → 4초
+            logger.error(f"[recommend] RateLimitError model={model_name} wait={wait}s: {e}")
+            if attempt < len(model_chain) - 1:
+                logger.warning(f"[recommend] {wait}초 후 다음 모델로 폴백")
+                time.sleep(wait)
                 continue
+            raise
 
-            else:
-                raise
+        except AuthenticationError as e:
+            logger.error(f"[recommend] 인증 실패 — OPENROUTER_API_KEY 확인 필요: {e}")
+            raise
 
-    if response is None:
-        raise RuntimeError("Gemini 응답 없음 — 모든 모델 폴백 실패")
+        except BadRequestError as e:
+            logger.error(f"[recommend] 잘못된 요청 model={model_name}: {e}")
+            raise
 
-    # ── 응답 원문 로그 ───────────────────────────────────────────────
-    raw = response.text.strip() if response.text else ""
-    logger.info(
-        f"[recommend] Gemini 응답 원문 length={len(raw)} "
-        f"preview={raw[:300]!r}"
-    )
+        except Exception as e:
+            logger.error(f"[recommend] 예상치 못한 오류 model={model_name}: {e}", exc_info=True)
+            if attempt < len(model_chain) - 1:
+                logger.warning(f"[recommend] 다음 모델로 폴백")
+                continue
+            raise
+    else:
+        raise RuntimeError("OpenRouter 응답 없음 — 모든 모델 폴백 실패")
 
+    raw = raw.strip()
     if raw.startswith("```"):
         raw = raw.split("```")[1]
         if raw.startswith("json"):
