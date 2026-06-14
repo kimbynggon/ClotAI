@@ -86,7 +86,7 @@ export default function FavoriteList() {
         <div key={item.id} className="card p-5 flex items-center justify-between gap-3">
           <Link href={`/history/${item.id}`} className="min-w-0 flex-1 space-y-1 block">
             <p className="font-semibold text-zinc-900 truncate">
-              {item.styleKeyword ?? '코디 추천'}
+              {item.style ?? item.styleKeyword ?? '코디 추천'}
             </p>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-zinc-400">
               <span>{item.weatherDescription}</span>

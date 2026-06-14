@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import time
+from abc import ABC, abstractmethod
 from pathlib import Path
 
 from openai import AuthenticationError, BadRequestError, OpenAI, RateLimitError
@@ -11,6 +12,7 @@ from schemas.request import RecommendRequest
 logger = logging.getLogger(__name__)
 
 PROMPT_DIR = Path(__file__).parent.parent / "prompts"
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 GENDER_MAP = {"male": "남성", "female": "여성", "other": "기타"}
 BODY_TYPE_MAP = {
@@ -23,34 +25,206 @@ BODY_TYPE_MAP = {
 BUDGET_MAP = {"low": "저가 (3만원 이하)", "mid": "중가 (3~10만원)", "high": "고가 (10만원 이상)"}
 SEASON_MAP = {"spring": "봄", "summer": "여름", "autumn": "가을", "winter": "겨울"}
 
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-
-FALLBACK_MODELS = [
+# 모델 우선순위: Gemma(메인) → Llama 3.3(백업) → Llama 3.1 8B free → Llama 3.1 8B 유료
+# qwen/qwen3-14b:free 는 2026-06 무료 지원 종료 — 체인에서 제거
+OPENROUTER_MODEL_CHAIN = [
+    "google/gemma-3-27b-it:free",
     "meta-llama/llama-3.3-70b-instruct:free",
     "meta-llama/llama-3.1-8b-instruct:free",
+    "meta-llama/llama-3.1-8b-instruct",
 ]
 
 JSON_SCHEMA = """
 다음 JSON 형식으로만 응답하세요 (코드블록 없이 순수 JSON):
 {
-  "outfit": {
+  "style": "스타일 이름 (예: Summer Casual, Modern Minimal, Street Chic)",
+  "colors": ["메인 색상", "서브 색상", "포인트 색상"],
+  "items": {
     "top": "구체적인 상의 설명 (색상, 소재, 핏 포함)",
     "bottom": "구체적인 하의 설명",
     "outer": "아우터 설명 (필요 없으면 null)",
     "shoes": "신발 설명",
     "accessory": "액세서리 설명 (없으면 null)"
   },
-  "reason": "이 코디를 추천하는 이유 (날씨·체형·스타일을 각각 언급, 2~3문장)",
-  "styleKeyword": "이 코디의 핵심 스타일 키워드 (예: 캐주얼 미니멀)",
-  "colorPalette": ["메인 색상", "서브 색상", "포인트 색상"]
+  "reason": "추천 이유 (날씨·체형·스타일을 자연스럽게 녹여서 2~3문장. 예: '26도의 따뜻한 날씨이지만 이슬비가 내리고 있어 통기성이 좋은 린넨 셔츠와 방수 바람막이를 추천합니다.')"
 }
 """
 
 
+class BaseProvider(ABC):
+    @property
+    @abstractmethod
+    def provider_name(self) -> str: ...
+
+    @abstractmethod
+    def generate(self, req: RecommendRequest, system_prompt: str, user_message: str) -> dict: ...
+
+
+class OpenRouterProvider(BaseProvider):
+    provider_name = "OpenRouter"
+
+    def generate(self, req: RecommendRequest, system_prompt: str, user_message: str) -> dict:
+        api_key = os.environ.get("OPENROUTER_API_KEY", "")
+        if not api_key:
+            raise RuntimeError("OPENROUTER_API_KEY가 설정되지 않았습니다.")
+
+        primary = os.environ.get("AI_MODEL", OPENROUTER_MODEL_CHAIN[0])
+        chain = [primary] + [m for m in OPENROUTER_MODEL_CHAIN if m != primary]
+
+        client = OpenAI(api_key=api_key, base_url=OPENROUTER_BASE_URL)
+
+        for attempt, model in enumerate(chain):
+            t0 = time.time()
+            try:
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_message},
+                    ],
+                    max_tokens=1024,
+                )
+                elapsed = round((time.time() - t0) * 1000)
+                raw = response.choices[0].message.content or ""
+                logger.info(
+                    f"[AI] provider={self.provider_name} model={model} "
+                    f"elapsed={elapsed}ms success=true length={len(raw)}"
+                )
+                return _parse_json(raw)
+
+            except RateLimitError as e:
+                elapsed = round((time.time() - t0) * 1000)
+                wait = 2 ** attempt
+                logger.warning(
+                    f"[AI] provider={self.provider_name} model={model} "
+                    f"elapsed={elapsed}ms success=false error=RateLimitError "
+                    f"message={e} next_wait={wait}s"
+                )
+                if attempt < len(chain) - 1:
+                    time.sleep(wait)
+                    continue
+                raise
+
+            except AuthenticationError as e:
+                elapsed = round((time.time() - t0) * 1000)
+                logger.error(
+                    f"[AI] provider={self.provider_name} model={model} "
+                    f"elapsed={elapsed}ms success=false error=AuthenticationError message={e}"
+                )
+                raise
+
+            except BadRequestError as e:
+                elapsed = round((time.time() - t0) * 1000)
+                logger.warning(
+                    f"[AI] provider={self.provider_name} model={model} "
+                    f"elapsed={elapsed}ms success=false error=BadRequestError message={e}"
+                )
+                if attempt < len(chain) - 1:
+                    continue
+                raise
+
+            except Exception as e:
+                elapsed = round((time.time() - t0) * 1000)
+                logger.error(
+                    f"[AI] provider={self.provider_name} model={model} "
+                    f"elapsed={elapsed}ms success=false error={type(e).__name__} message={e}",
+                    exc_info=True,
+                )
+                if attempt < len(chain) - 1:
+                    continue
+                raise
+
+        raise RuntimeError("OpenRouter 전체 폴백 실패 — 모든 모델 응답 없음")
+
+
+class RuleBasedProvider(BaseProvider):
+    provider_name = "RuleBased"
+
+    def generate(self, req: RecommendRequest, system_prompt: str = "", user_message: str = "") -> dict:
+        w = req.weather
+        t0 = time.time()
+
+        presets: dict = {
+            "spring": {
+                "style": "봄 캐주얼",
+                "colors": ["화이트", "베이지", "라이트 탄"],
+                "items": {
+                    "top": "화이트 오버사이즈 린넨 셔츠",
+                    "bottom": "베이지 와이드 슬랙스",
+                    "outer": "라이트 트렌치코트" if w.temperature < 15 else None,
+                    "shoes": "화이트 캔버스 스니커즈",
+                    "accessory": "투명 우산" if w.is_raining else "라탄 버킷백",
+                },
+            },
+            "summer": {
+                "style": "서머 캐주얼",
+                "colors": ["아이보리", "네이비", "화이트"],
+                "items": {
+                    "top": "스트라이프 반팔 린넨 셔츠",
+                    "bottom": "아이보리 반바지",
+                    "outer": "방수 바람막이" if w.is_raining else None,
+                    "shoes": "슬립온 스니커즈",
+                    "accessory": "경량 우산" if w.is_raining else "패브릭 크로스백",
+                },
+            },
+            "autumn": {
+                "style": "오텀 클래식",
+                "colors": ["머스타드", "카멜", "다크 브라운"],
+                "items": {
+                    "top": "머스타드 니트 스웨터",
+                    "bottom": "다크 브라운 슬랙스",
+                    "outer": "카멜 울 블레이저" if w.temperature < 15 else None,
+                    "shoes": "첼시 부츠",
+                    "accessory": "우산" if w.is_raining else "레더 토트백",
+                },
+            },
+            "winter": {
+                "style": "모던 윈터",
+                "colors": ["크림", "차콜", "네이비"],
+                "items": {
+                    "top": "크림 터틀넥 니트",
+                    "bottom": "차콜 울 슬랙스",
+                    "outer": "롱 패딩 점퍼" if w.is_snowing else "네이비 롱 코트",
+                    "shoes": "블랙 앵클 부츠",
+                    "accessory": "니트 장갑" if w.is_snowing else "울 머플러",
+                },
+            },
+        }
+
+        preset = presets.get(w.season, presets["spring"])
+        elapsed = round((time.time() - t0) * 1000)
+        logger.info(
+            f"[AI] provider={self.provider_name} model=rule-engine "
+            f"elapsed={elapsed}ms success=true"
+        )
+        return {
+            **preset,
+            "reason": (
+                f"{w.temperature}°C의 {w.weather_description} 날씨에 맞춰 "
+                f"날씨 데이터를 기반으로 추천드립니다."
+            ),
+        }
+
+
 def _load_prompt(filename: str) -> str:
-    path = PROMPT_DIR / filename
-    logger.info(f"[recommend] 프롬프트 로드: {path}")
-    return path.read_text(encoding="utf-8")
+    return (PROMPT_DIR / filename).read_text(encoding="utf-8")
+
+
+def _parse_json(raw: str) -> dict:
+    raw = raw.strip()
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+        raw = raw.strip()
+
+    # Qwen3 <think>...</think> 태그 제거
+    if "<think>" in raw:
+        end = raw.find("</think>")
+        if end != -1:
+            raw = raw[end + len("</think>"):].strip()
+
+    return json.loads(raw)
 
 
 def _build_message(req: RecommendRequest) -> str:
@@ -63,8 +237,8 @@ def _build_message(req: RecommendRequest) -> str:
     elif w.is_snowing:
         precipitation_info = "눈 내림"
 
-    template = _load_prompt("ootd_prompt_v1.txt")
-    user_section = template.format(
+    template = _load_prompt("ootd_prompt_v2.txt")
+    return template.format(
         gender=GENDER_MAP.get(p.gender or "", p.gender or "미입력"),
         height=f"{p.height}cm" if p.height else "미입력",
         weight=f"{p.weight}kg" if p.weight else "미입력",
@@ -77,91 +251,26 @@ def _build_message(req: RecommendRequest) -> str:
         weather_description=w.weather_description,
         season=SEASON_MAP.get(w.season, w.season),
         precipitation_info=precipitation_info,
-    )
-
-    return user_section + JSON_SCHEMA
+    ) + JSON_SCHEMA
 
 
 def generate_recommendation(req: RecommendRequest) -> dict:
-    api_key = os.environ.get("OPENROUTER_API_KEY", "")
-    if not api_key:
-        logger.error("[recommend] OPENROUTER_API_KEY 환경변수 누락")
-        raise RuntimeError("OPENROUTER_API_KEY가 설정되지 않았습니다.")
-
-    primary_model = os.environ.get("AI_MODEL", FALLBACK_MODELS[0])
-    model_chain = [primary_model] + [m for m in FALLBACK_MODELS if m != primary_model]
-    logger.info(f"[recommend] 모델 폴백 체인={model_chain}")
-
-    client = OpenAI(
-        api_key=api_key,
-        base_url=OPENROUTER_BASE_URL,
-    )
+    openrouter = OpenRouterProvider()
+    rule_based = RuleBasedProvider()
 
     system_prompt = _load_prompt("system_prompt.txt")
     user_message = _build_message(req)
 
-    raw = ""
-    for attempt, model_name in enumerate(model_chain):
-        logger.info(f"[recommend] OpenRouter 호출 model={model_name} attempt={attempt + 1}")
-        try:
-            response = client.chat.completions.create(
-                model=model_name,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_message},
-                ],
-                max_tokens=1024,
-            )
-            raw = response.choices[0].message.content or ""
-            logger.info(f"[recommend] 응답 완료 model={model_name} length={len(raw)}")
-            break
-
-        except RateLimitError as e:
-            wait = 2 ** attempt  # 지수 백오프: 1초 → 2초 → 4초
-            logger.error(f"[recommend] RateLimitError model={model_name} wait={wait}s: {e}")
-            if attempt < len(model_chain) - 1:
-                logger.warning(f"[recommend] {wait}초 후 다음 모델로 폴백")
-                time.sleep(wait)
-                continue
-            raise
-
-        except AuthenticationError as e:
-            logger.error(f"[recommend] 인증 실패 — OPENROUTER_API_KEY 확인 필요: {e}")
-            raise
-
-        except BadRequestError as e:
-            logger.error(f"[recommend] 잘못된 요청 model={model_name}: {e}")
-            raise
-
-        except Exception as e:
-            logger.error(f"[recommend] 예상치 못한 오류 model={model_name}: {e}", exc_info=True)
-            if attempt < len(model_chain) - 1:
-                logger.warning(f"[recommend] 다음 모델로 폴백")
-                continue
-            raise
-    else:
-        raise RuntimeError("OpenRouter 응답 없음 — 모든 모델 폴백 실패")
-
-    raw = raw.strip()
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-        raw = raw.strip()
-
     try:
-        return json.loads(raw)
-    except json.JSONDecodeError as e:
-        logger.warning(f"[recommend] JSON 파싱 실패 err={e} raw={raw[:200]}")
-        return {
-            "outfit": {
-                "top": "흰색 반팔 티셔츠",
-                "bottom": "네이비 슬랙스",
-                "outer": None,
-                "shoes": "흰색 스니커즈",
-                "accessory": None,
-            },
-            "reason": "AI 응답 파싱에 실패하여 기본 추천을 제공합니다.",
-            "styleKeyword": "캐주얼",
-            "colorPalette": ["white", "navy", "gray"],
-        }
+        result = openrouter.generate(req, system_prompt, user_message)
+        logger.info("[recommend] OpenRouter 최종 성공")
+        return result
+    except Exception as e:
+        logger.warning(
+            f"[recommend] OpenRouter 전체 실패 — RuleBased 폴백 진입 "
+            f"error={type(e).__name__}: {e}"
+        )
+
+    result = rule_based.generate(req)
+    logger.info("[recommend] RuleBased 폴백 완료")
+    return result

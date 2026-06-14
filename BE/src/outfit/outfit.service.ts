@@ -147,7 +147,7 @@ export class OutfitService {
       const wd = o.weatherData as Record<string, unknown>;
       return {
         id: o.id,
-        styleKeyword: ai['styleKeyword'] ?? null,
+        style: ai['style'] ?? ai['styleKeyword'] ?? null,
         weatherDescription: wd['weatherDescription'] ?? null,
         temperature: wd['temperature'] ?? null,
         season: wd['season'] ?? null,
@@ -247,10 +247,10 @@ export class OutfitService {
   ) {
     return {
       id: outfit.id,
-      outfit: ai['outfit'],
+      style: ai['style'] ?? ai['styleKeyword'] ?? null,
+      colors: ai['colors'] ?? ai['colorPalette'] ?? [],
+      items: ai['items'] ?? ai['outfit'] ?? {},
       reason: ai['reason'],
-      styleKeyword: ai['styleKeyword'],
-      colorPalette: ai['colorPalette'],
       weather,
       createdAt: outfit.createdAt,
       isFallback,
@@ -258,32 +258,35 @@ export class OutfitService {
   }
 
   private buildFallbackRecommendation(weather: WeatherResult): Record<string, unknown> {
-    const { season, temperature, isRaining, isSnowing, weatherDescription, city } = weather;
-    const loc = city ?? '현재 위치';
+    const { season, temperature, isRaining, isSnowing, weatherDescription } = weather;
 
     const base: Record<string, Record<string, unknown>> = {
       spring: {
-        outfit: { top: '화이트 오버사이즈 린넨 셔츠', bottom: '베이지 와이드 슬랙스', outer: temperature < 15 ? '라이트 트렌치코트' : null, shoes: '화이트 캔버스 스니커즈', accessory: isRaining ? '투명 우산' : '라탄 버킷백' },
-        styleKeyword: '캐주얼 미니멀', colorPalette: ['white', 'beige', 'light tan'],
+        style: '봄 캐주얼',
+        colors: ['화이트', '베이지', '라이트 탄'],
+        items: { top: '화이트 오버사이즈 린넨 셔츠', bottom: '베이지 와이드 슬랙스', outer: temperature < 15 ? '라이트 트렌치코트' : null, shoes: '화이트 캔버스 스니커즈', accessory: isRaining ? '투명 우산' : '라탄 버킷백' },
       },
       summer: {
-        outfit: { top: '스트라이프 반팔 린넨 셔츠', bottom: '아이보리 반바지', outer: isRaining ? '방수 바람막이' : null, shoes: '슬립온 스니커즈', accessory: isRaining ? '경량 우산' : '패브릭 크로스백' },
-        styleKeyword: '서머 캐주얼', colorPalette: ['ivory', 'navy', 'white'],
+        style: '서머 캐주얼',
+        colors: ['아이보리', '네이비', '화이트'],
+        items: { top: '스트라이프 반팔 린넨 셔츠', bottom: '아이보리 반바지', outer: isRaining ? '방수 바람막이' : null, shoes: '슬립온 스니커즈', accessory: isRaining ? '경량 우산' : '패브릭 크로스백' },
       },
       autumn: {
-        outfit: { top: '머스타드 니트 스웨터', bottom: '다크 브라운 슬랙스', outer: temperature < 15 ? '카멜 울 블레이저' : null, shoes: '첼시 부츠', accessory: isRaining ? '우산' : '레더 토트백' },
-        styleKeyword: '오텀 클래식', colorPalette: ['mustard', 'camel', 'dark brown'],
+        style: '오텀 클래식',
+        colors: ['머스타드', '카멜', '다크 브라운'],
+        items: { top: '머스타드 니트 스웨터', bottom: '다크 브라운 슬랙스', outer: temperature < 15 ? '카멜 울 블레이저' : null, shoes: '첼시 부츠', accessory: isRaining ? '우산' : '레더 토트백' },
       },
       winter: {
-        outfit: { top: '크림 터틀넥 니트', bottom: '차콜 울 슬랙스', outer: isSnowing ? '롱 패딩 점퍼' : '네이비 롱 코트', shoes: '블랙 앵클 부츠', accessory: isSnowing ? '니트 장갑' : '울 머플러' },
-        styleKeyword: '모던 윈터', colorPalette: ['cream', 'charcoal', 'navy'],
+        style: '모던 윈터',
+        colors: ['크림', '차콜', '네이비'],
+        items: { top: '크림 터틀넥 니트', bottom: '차콜 울 슬랙스', outer: isSnowing ? '롱 패딩 점퍼' : '네이비 롱 코트', shoes: '블랙 앵클 부츠', accessory: isSnowing ? '니트 장갑' : '울 머플러' },
       },
     };
 
     const preset = base[season] ?? base['spring'];
     return {
       ...preset,
-      reason: `오늘 ${loc}은 ${temperature}°C, ${weatherDescription} 날씨예요. AI 서비스 점검 중으로 날씨 기반 기본 코디를 제안드립니다.`,
+      reason: `${temperature}°C의 ${weatherDescription} 날씨 데이터를 기반으로 추천 중입니다.`,
     };
   }
 }

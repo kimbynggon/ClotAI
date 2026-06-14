@@ -15,7 +15,7 @@ const OUTFIT_FIELDS = [
 ];
 
 function formatDate(isoString) {
-  return new Date(isoString).toISOString().slice(0, 10); // "2026-06-14"
+  return new Date(isoString).toISOString().slice(0, 10);
 }
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
@@ -34,19 +34,19 @@ function getShoppingUrl(item) {
 }
 
 function buildShareText(result) {
-  const { outfit, styleKeyword, colorPalette, weather, createdAt } = result;
+  const { items, style, colors, weather, createdAt } = result;
   const date = formatDate(createdAt);
   const lines = [
     `📅 ${date} 오늘의 OOTD — ClotAI`,
     `🌤 ${weather?.city ?? ''} ${weather?.temperature ?? ''}°C ${weather?.weatherDescription ?? ''}`,
     '',
-    `스타일: ${styleKeyword}`,
-    outfit?.top       && `상의: ${outfit.top}`,
-    outfit?.bottom    && `하의: ${outfit.bottom}`,
-    outfit?.outer     && `아우터: ${outfit.outer}`,
-    outfit?.shoes     && `신발: ${outfit.shoes}`,
-    outfit?.accessory && `액세서리: ${outfit.accessory}`,
-    colorPalette?.length && `컬러: ${colorPalette.join(', ')}`,
+    `스타일: ${style}`,
+    items?.top       && `상의: ${items.top}`,
+    items?.bottom    && `하의: ${items.bottom}`,
+    items?.outer     && `아우터: ${items.outer}`,
+    items?.shoes     && `신발: ${items.shoes}`,
+    items?.accessory && `액세서리: ${items.accessory}`,
+    colors?.length   && `컬러: ${colors.join(', ')}`,
     '',
     '#ClotAI #OOTD #오늘의코디',
   ].filter(Boolean).join('\n');
@@ -61,7 +61,7 @@ export default function OutfitCard({
   isGuest = false,
   onRetry,
 }) {
-  const { outfit, reason, styleKeyword, colorPalette, weather, createdAt, id, isFallback } = result;
+  const { items, reason, style, colors, weather, createdAt, id, isFallback } = result;
   const [copied, setCopied] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
   const [favoriteLoading, setFavoriteLoading] = useState(false);
@@ -102,10 +102,10 @@ export default function OutfitCard({
               d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <div className="space-y-1">
-            <p className="text-xs font-semibold text-amber-800">현재 AI 추천을 로드하는 중입니다</p>
+            <p className="text-xs font-semibold text-amber-800">날씨 데이터를 기반으로 추천 중입니다</p>
             <p className="text-xs text-amber-700 leading-relaxed">
-              아래는 날씨 기반 미리보기이니 참고용으로만 봐주세요. 조금만 기다리신 후 다시 시도하시면
-              체형·취향까지 반영한 AI 맞춤 추천을 받아보실 수 있습니다.
+              아래는 날씨 기반 미리보기입니다. 조금 후 다시 시도하시면
+              체형·취향까지 반영한 AI 맞춤 추천을 받으실 수 있어요.
             </p>
             <p className="text-xs font-semibold text-amber-600">✓ 미리보기에서는 추천 횟수가 차감되지 않습니다.</p>
           </div>
@@ -114,12 +114,10 @@ export default function OutfitCard({
 
       {/* 헤더 카드: 날씨 + 링크 + 날짜 */}
       <div className="card px-4 py-4 space-y-2">
-        {/* 도시이름 */}
         {weather?.city && (
           <p className="text-sm font-bold text-zinc-900">{weather.city}</p>
         )}
 
-        {/* 날씨 데이터 */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-zinc-600">
           <span className="font-bold text-zinc-900">{weather?.temperature}°C</span>
           <span>{weather?.weatherDescription}</span>
@@ -130,22 +128,19 @@ export default function OutfitCard({
             <span className="text-zinc-500">습도 {weather.humidity}%</span>
           )}
           {weather?.windSpeed !== undefined && (
-            <span className="text-zinc-500">풍속 {weather.windSpeed}km/h</span>
+            <span className="text-zinc-500">풍속 {weather.windSpeed}m/s</span>
           )}
           {weather?.isRaining && <span className="text-blue-500">🌂</span>}
           {weather?.isSnowing && <span className="text-sky-400">❄️</span>}
         </div>
 
-        {/* 날씨 기준 시간 */}
         {weather?.cachedAt && (
           <p className="text-xs text-zinc-400">
             날씨 기준 {formatCachedAt(weather.cachedAt)}
           </p>
         )}
 
-        {/* 구분선 */}
         <div className="border-t border-zinc-100 pt-2 flex items-center justify-between">
-          {/* 링크(공유) + 미리보기 배지 */}
           <div className="flex items-center gap-1.5">
             {showActions && (
               <button
@@ -172,7 +167,6 @@ export default function OutfitCard({
             )}
           </div>
 
-          {/* 즐겨찾기 + 날짜 */}
           <div className="flex items-center gap-1.5">
             {showActions && isGuest && (
               <Link
@@ -207,19 +201,19 @@ export default function OutfitCard({
         </div>
       </div>
 
-      {/* 스타일 키워드 + 시즌 */}
+      {/* 스타일 + 시즌 */}
       <div className="card p-5">
         <span className="text-lg font-bold text-zinc-900">
-          {styleKeyword}{seasonLabel ? `, ${seasonLabel}` : ''}
+          {style}{seasonLabel ? `, ${seasonLabel}` : ''}
         </span>
       </div>
 
       {/* 컬러 팔레트 */}
-      {colorPalette?.length > 0 && (
+      {colors?.length > 0 && (
         <div className="card p-5">
           <p className="label">컬러 팔레트</p>
           <div className="flex flex-wrap gap-2 mt-2">
-            {colorPalette.map((color, i) => (
+            {colors.map((color, i) => (
               <span key={i} className="text-xs px-3 py-1.5 rounded-full border border-zinc-200 text-zinc-600 bg-zinc-50">
                 {color}
               </span>
@@ -228,17 +222,17 @@ export default function OutfitCard({
         </div>
       )}
 
-      {/* 코디 아이템 + 쇼핑 링크 */}
+      {/* 코디 아이템 + 무신사 검색 */}
       <div className="card p-5">
         <p className="label mb-3">오늘의 코디</p>
         <div className="space-y-3">
-          {OUTFIT_FIELDS.filter(({ key }) => outfit?.[key]).map(({ key, label }) => (
+          {OUTFIT_FIELDS.filter(({ key }) => items?.[key]).map(({ key, label }) => (
             <div key={key} className="flex items-start gap-3">
               <span className="text-xs font-semibold text-zinc-400 w-14 pt-0.5 shrink-0">{label}</span>
-              <span className="text-sm text-zinc-700 leading-relaxed flex-1">{outfit[key]}</span>
+              <span className="text-sm text-zinc-700 leading-relaxed flex-1">{items[key]}</span>
               {!isPreview && (
                 <a
-                  href={getShoppingUrl(outfit[key])}
+                  href={getShoppingUrl(items[key])}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="shrink-0 text-xs font-semibold text-rose-500 hover:text-white hover:bg-rose-500 transition-colors border border-rose-300 hover:border-rose-500 rounded-lg px-2.5 py-1.5 whitespace-nowrap"

@@ -2,7 +2,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 
 
-class OutfitItem(BaseModel):
+class OutfitItems(BaseModel):
     top: str
     bottom: str
     outer: Optional[str] = None
@@ -11,7 +11,7 @@ class OutfitItem(BaseModel):
 
 
 class RecommendResponse(BaseModel):
-    outfit: OutfitItem
+    style: str
+    colors: List[str]
+    items: OutfitItems
     reason: str
-    styleKeyword: str
-    colorPalette: List[str]

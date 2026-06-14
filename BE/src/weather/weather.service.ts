@@ -153,7 +153,7 @@ export interface WeatherResult {
   feelsLike: number;         // 체감온도 °C
   precipitation: number;     // 강수량 mm
   humidity: number;          // 습도 %
-  windSpeed: number;         // 풍속 km/h
+  windSpeed: number;         // 풍속 m/s
   weatherCode: number;
   weatherDescription: string;
   season: string;
@@ -217,7 +217,7 @@ export class WeatherService {
       feelsLike: parseFloat(cur.FeelsLikeC ?? '0'),
       precipitation: precipMM,
       humidity: parseFloat(cur.humidity ?? '0'),
-      windSpeed: parseFloat(cur.windspeedKmph ?? '0'),
+      windSpeed: Math.round((parseFloat(cur.windspeedKmph ?? '0') / 3.6) * 10) / 10,
       weatherCode: code,
       weatherDescription: WTTR_DESC[code] ?? '알 수 없음',
       season: getSeason(month),

@@ -12,11 +12,11 @@ const STYLE_OPTIONS = [
   { id: 'casual', label: '캐주얼', emoji: '👕' },
   { id: 'minimal', label: '미니멀', emoji: '🤍' },
   { id: 'street', label: '스트릿', emoji: '🧢' },
+  { id: 'business_casual', label: '비즈니스 캐주얼', emoji: '💼' },
+  { id: 'amekaji', label: '아메카지', emoji: '🧣' },
   { id: 'vintage', label: '빈티지', emoji: '🎸' },
   { id: 'sporty', label: '스포티', emoji: '⚡' },
-  { id: 'formal', label: '포멀', emoji: '👔' },
   { id: 'feminine', label: '페미닌', emoji: '🌸' },
-  { id: 'bohemian', label: '보헤미안', emoji: '🌿' },
 ];
 
 const COLOR_OPTIONS = [

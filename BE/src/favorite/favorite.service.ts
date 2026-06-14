@@ -35,7 +35,7 @@ export class FavoriteService {
       const wd = f.outfit.weatherData as Record<string, unknown>;
       return {
         id: f.outfit.id,
-        styleKeyword: ai['styleKeyword'] ?? null,
+        style: ai['style'] ?? ai['styleKeyword'] ?? null,
         weatherDescription: wd['weatherDescription'] ?? null,
         temperature: wd['temperature'] ?? null,
         season: wd['season'] ?? null,
