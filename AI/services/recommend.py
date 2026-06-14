@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 PROMPT_DIR = Path(__file__).parent.parent / "prompts"
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 
 GENDER_MAP = {"male": "남성", "female": "여성", "other": "기타"}
 BODY_TYPE_MAP = {
@@ -25,13 +26,16 @@ BODY_TYPE_MAP = {
 BUDGET_MAP = {"low": "저가 (3만원 이하)", "mid": "중가 (3~10만원)", "high": "고가 (10만원 이상)"}
 SEASON_MAP = {"spring": "봄", "summer": "여름", "autumn": "가을", "winter": "겨울"}
 
-# 모델 우선순위: Gemma(메인) → Llama 3.3(백업) → Llama 3.1 8B free → Llama 3.1 8B 유료
-# qwen/qwen3-14b:free 는 2026-06 무료 지원 종료 — 체인에서 제거
+# Groq 모델 체인 (무료, 빠름)
+GROQ_MODEL_CHAIN = [
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+]
+
+# OpenRouter 폴백 체인 (Groq 실패 시)
 OPENROUTER_MODEL_CHAIN = [
-    "google/gemma-3-27b-it:free",
-    "meta-llama/llama-3.3-70b-instruct:free",
     "meta-llama/llama-3.1-8b-instruct:free",
-    "meta-llama/llama-3.1-8b-instruct",
+    "mistralai/mistral-7b-instruct:free",
 ]
 
 JSON_SCHEMA = """
@@ -60,20 +64,11 @@ class BaseProvider(ABC):
     def generate(self, req: RecommendRequest, system_prompt: str, user_message: str) -> dict: ...
 
 
-class OpenRouterProvider(BaseProvider):
-    provider_name = "OpenRouter"
+class _OpenAICompatProvider(BaseProvider):
+    """OpenAI 호환 API를 사용하는 Provider 공통 로직"""
 
-    def generate(self, req: RecommendRequest, system_prompt: str, user_message: str) -> dict:
-        api_key = os.environ.get("OPENROUTER_API_KEY", "")
-        if not api_key:
-            raise RuntimeError("OPENROUTER_API_KEY가 설정되지 않았습니다.")
-
-        primary = os.environ.get("AI_MODEL", OPENROUTER_MODEL_CHAIN[0])
-        chain = [primary] + [m for m in OPENROUTER_MODEL_CHAIN if m != primary]
-
-        client = OpenAI(api_key=api_key, base_url=OPENROUTER_BASE_URL)
-
-        for attempt, model in enumerate(chain):
+    def _call(self, client: OpenAI, model_chain: list[str], system_prompt: str, user_message: str) -> dict:
+        for attempt, model in enumerate(model_chain):
             t0 = time.time()
             try:
                 response = client.chat.completions.create(
@@ -100,7 +95,7 @@ class OpenRouterProvider(BaseProvider):
                     f"elapsed={elapsed}ms success=false error=RateLimitError "
                     f"message={e} next_wait={wait}s"
                 )
-                if attempt < len(chain) - 1:
+                if attempt < len(model_chain) - 1:
                     time.sleep(wait)
                     continue
                 raise
@@ -119,7 +114,7 @@ class OpenRouterProvider(BaseProvider):
                     f"[AI] provider={self.provider_name} model={model} "
                     f"elapsed={elapsed}ms success=false error=BadRequestError message={e}"
                 )
-                if attempt < len(chain) - 1:
+                if attempt < len(model_chain) - 1:
                     continue
                 raise
 
@@ -127,14 +122,35 @@ class OpenRouterProvider(BaseProvider):
                 elapsed = round((time.time() - t0) * 1000)
                 logger.error(
                     f"[AI] provider={self.provider_name} model={model} "
-                    f"elapsed={elapsed}ms success=false error={type(e).__name__} message={e}",
-                    exc_info=True,
+                    f"elapsed={elapsed}ms success=false error={type(e).__name__} message={e}"
                 )
-                if attempt < len(chain) - 1:
+                if attempt < len(model_chain) - 1:
                     continue
                 raise
 
-        raise RuntimeError("OpenRouter 전체 폴백 실패 — 모든 모델 응답 없음")
+        raise RuntimeError(f"{self.provider_name} 전체 폴백 실패")
+
+
+class GroqProvider(_OpenAICompatProvider):
+    provider_name = "Groq"
+
+    def generate(self, req: RecommendRequest, system_prompt: str, user_message: str) -> dict:
+        api_key = os.environ.get("GROQ_API_KEY", "")
+        if not api_key:
+            raise RuntimeError("GROQ_API_KEY가 설정되지 않았습니다.")
+        client = OpenAI(api_key=api_key, base_url=GROQ_BASE_URL)
+        return self._call(client, GROQ_MODEL_CHAIN, system_prompt, user_message)
+
+
+class OpenRouterProvider(_OpenAICompatProvider):
+    provider_name = "OpenRouter"
+
+    def generate(self, req: RecommendRequest, system_prompt: str, user_message: str) -> dict:
+        api_key = os.environ.get("OPENROUTER_API_KEY", "")
+        if not api_key:
+            raise RuntimeError("OPENROUTER_API_KEY가 설정되지 않았습니다.")
+        client = OpenAI(api_key=api_key, base_url=OPENROUTER_BASE_URL)
+        return self._call(client, OPENROUTER_MODEL_CHAIN, system_prompt, user_message)
 
 
 class RuleBasedProvider(BaseProvider):
@@ -218,7 +234,6 @@ def _parse_json(raw: str) -> dict:
             raw = raw[4:]
         raw = raw.strip()
 
-    # Qwen3 <think>...</think> 태그 제거
     if "<think>" in raw:
         end = raw.find("</think>")
         if end != -1:
@@ -255,22 +270,34 @@ def _build_message(req: RecommendRequest) -> str:
 
 
 def generate_recommendation(req: RecommendRequest) -> dict:
+    groq = GroqProvider()
     openrouter = OpenRouterProvider()
     rule_based = RuleBasedProvider()
 
     system_prompt = _load_prompt("system_prompt.txt")
     user_message = _build_message(req)
 
-    try:
-        result = openrouter.generate(req, system_prompt, user_message)
-        logger.info("[recommend] OpenRouter 최종 성공")
-        return result
-    except Exception as e:
-        logger.warning(
-            f"[recommend] OpenRouter 전체 실패 — RuleBased 폴백 진입 "
-            f"error={type(e).__name__}: {e}"
-        )
+    # 1순위: Groq (무료, 빠름)
+    if os.environ.get("GROQ_API_KEY"):
+        try:
+            result = groq.generate(req, system_prompt, user_message)
+            logger.info("[recommend] Groq 성공")
+            return result
+        except Exception as e:
+            logger.warning(f"[recommend] Groq 실패 — OpenRouter 폴백 error={type(e).__name__}: {e}")
+    else:
+        logger.warning("[recommend] GROQ_API_KEY 미설정 — OpenRouter로 시도")
 
+    # 2순위: OpenRouter (무료 모델 잔여분)
+    if os.environ.get("OPENROUTER_API_KEY"):
+        try:
+            result = openrouter.generate(req, system_prompt, user_message)
+            logger.info("[recommend] OpenRouter 성공")
+            return result
+        except Exception as e:
+            logger.warning(f"[recommend] OpenRouter 실패 — RuleBased 폴백 error={type(e).__name__}: {e}")
+
+    # 3순위: Rule-Based (항상 성공)
     result = rule_based.generate(req)
     logger.info("[recommend] RuleBased 폴백 완료")
     return result
