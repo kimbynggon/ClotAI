@@ -7,6 +7,7 @@ from pathlib import Path
 from google import genai
 from google.genai import types
 from google.genai.errors import ClientError
+from google.oauth2.credentials import Credentials
 
 from schemas.request import RecommendRequest
 
@@ -24,6 +25,48 @@ BODY_TYPE_MAP = {
 }
 BUDGET_MAP = {"low": "저가 (3만원 이하)", "mid": "중가 (3~10만원)", "high": "고가 (10만원 이상)"}
 SEASON_MAP = {"spring": "봄", "summer": "여름", "autumn": "가을", "winter": "겨울"}
+
+# 지원 모델 목록 (무료 티어 기준 최신순)
+VALID_MODELS = {
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-8b",
+    "gemini-1.5-pro",
+}
+
+
+def _build_client(api_key: str) -> genai.Client:
+    """API 키 형식에 따라 적합한 genai.Client를 반환한다.
+
+    AQ. 형식  → Google OAuth 2.0 액세스 토큰 (Bearer 헤더 방식)
+    AIza 형식 → 정적 API Key (?key= 쿼리 파라미터 방식)
+    """
+    http_opts = types.HttpOptions(timeout=50000)
+    if api_key.startswith("AQ."):
+        logger.info(
+            "[recommend][DIAG] AQ. 형식 토큰 감지 — "
+            "OAuth Credentials(Bearer) 방식으로 Gemini 클라이언트 생성"
+        )
+        creds = Credentials(token=api_key)
+        return genai.Client(credentials=creds, http_options=http_opts)
+
+    logger.info("[recommend][DIAG] AIza 형식 API Key — ?key= 쿼리 방식으로 Gemini 클라이언트 생성")
+    return genai.Client(api_key=api_key, http_options=http_opts)
+
+
+def _classify_429(error_msg: str) -> str:
+    """429 에러 메시지를 분석해 원인을 반환한다."""
+    msg_lower = error_msg.lower()
+    if "per_day" in msg_lower or "per day" in msg_lower or "daily" in msg_lower:
+        return "DAILY_QUOTA_EXHAUSTED"
+    if "free_tier" in msg_lower or "free tier" in msg_lower:
+        return "FREE_TIER_QUOTA_EXHAUSTED"
+    if "per_minute" in msg_lower or "per minute" in msg_lower:
+        return "RATE_LIMIT_PER_MINUTE"
+    if "resource_exhausted" in msg_lower:
+        return "QUOTA_EXHAUSTED"
+    return "RATE_LIMIT_UNKNOWN"
 
 JSON_SCHEMA = """
 다음 JSON 형식으로만 응답하세요 (코드블록 없이 순수 JSON):
@@ -78,23 +121,46 @@ def _build_message(req: RecommendRequest) -> str:
 
 
 def generate_recommendation(req: RecommendRequest) -> dict:
+    # ── API 키 진단 ──────────────────────────────────────────────────
     api_key = os.environ.get("GOOGLE_API_KEY", "")
     if not api_key:
-        logger.error("[recommend] GOOGLE_API_KEY 환경변수가 설정되지 않았습니다!")
+        logger.error("[recommend][DIAG] GOOGLE_API_KEY 환경변수 누락 — Render 환경변수 확인 필요")
         raise RuntimeError("GOOGLE_API_KEY가 설정되지 않았습니다.")
 
-    model_name = os.environ.get("AI_MODEL", "gemini-1.5-flash-8b")
-    logger.info(f"[recommend] 모델 호출 시작 model={model_name} key_prefix={api_key[:6]}")
-
-    client = genai.Client(
-        api_key=api_key,
-        http_options=types.HttpOptions(timeout=50000),  # 50,000ms = 50초
+    key_prefix = api_key[:8] if len(api_key) >= 8 else api_key
+    key_len = len(api_key)
+    is_oauth_token = api_key.startswith("AQ.")
+    is_api_key = api_key.startswith("AIza")
+    logger.info(
+        f"[recommend][DIAG] API 키 로드 완료 "
+        f"prefix={key_prefix}... length={key_len} "
+        f"type={'OAuth-AQ' if is_oauth_token else 'APIKey-AIza' if is_api_key else 'UNKNOWN'}"
     )
+    if not is_oauth_token and not is_api_key:
+        logger.warning(
+            "[recommend][DIAG] 알 수 없는 키 형식 — "
+            "AQ.(OAuth 토큰) 또는 AIza(API Key) 형식이어야 합니다."
+        )
+
+    # ── 모델 진단 ────────────────────────────────────────────────────
+    model_name = os.environ.get("AI_MODEL", "gemini-2.0-flash")
+    if model_name not in VALID_MODELS:
+        logger.warning(
+            f"[recommend][DIAG] 알 수 없는 모델명 model={model_name} — "
+            f"지원 목록: {sorted(VALID_MODELS)} "
+            "잘못된 모델명이면 404/400이 발생할 수 있습니다."
+        )
+    logger.info(f"[recommend][DIAG] 사용 모델={model_name}")
+
+    client = _build_client(api_key)
 
     system_prompt = _load_prompt("system_prompt.txt")
     user_message = _build_message(req)
 
-    for attempt in range(2):
+    max_attempts = 2
+    response = None
+    for attempt in range(max_attempts):
+        logger.info(f"[recommend] Gemini 호출 attempt={attempt + 1}/{max_attempts} model={model_name}")
         try:
             response = client.models.generate_content(
                 model=model_name,
@@ -104,22 +170,81 @@ def generate_recommendation(req: RecommendRequest) -> dict:
                     max_output_tokens=1024,
                 ),
             )
+            logger.info(f"[recommend] Gemini 호출 성공 attempt={attempt + 1}")
             break
         except ClientError as e:
             status = getattr(e, "status_code", 0)
-            logger.error(f"[recommend] ClientError attempt={attempt} status={status} msg={str(e)}")
+            error_msg = str(e)
+            logger.error(
+                f"[recommend] ClientError attempt={attempt + 1}/{max_attempts} "
+                f"status={status} msg={error_msg[:500]}"
+            )
+
             if status == 429:
-                if attempt == 0:
-                    logger.warning("[recommend] 429 rate limit — 5초 후 재시도")
-                    time.sleep(5)
-                else:
-                    logger.error("[recommend] 429 재시도 실패 — 할당량 초과")
+                cause = _classify_429(error_msg)
+                logger.error(f"[recommend][DIAG] 429 원인 분류={cause}")
+                if cause == "DAILY_QUOTA_EXHAUSTED":
+                    logger.error(
+                        "[recommend][DIAG] 일일 할당량 소진 — 재시도 무의미. "
+                        "Google AI Studio(aistudio.google.com)에서 사용량 확인 및 결제 설정 필요"
+                    )
                     raise
+                elif cause == "FREE_TIER_QUOTA_EXHAUSTED":
+                    logger.error(
+                        "[recommend][DIAG] 무료 티어 할당량 소진 — "
+                        "당일 재시도 불가. 내일 UTC 00:00 이후 리셋됩니다."
+                    )
+                    raise
+                elif cause == "RATE_LIMIT_PER_MINUTE":
+                    logger.warning(
+                        f"[recommend][DIAG] 분당 rate limit — "
+                        f"attempt={attempt + 1}: {'5초 후 재시도' if attempt == 0 else '최종 실패'}"
+                    )
+                    if attempt == 0:
+                        time.sleep(5)
+                        continue
+                    raise
+                else:
+                    if attempt == 0:
+                        logger.warning("[recommend] 429 — 5초 후 재시도")
+                        time.sleep(5)
+                        continue
+                    logger.error("[recommend] 429 재시도 최종 실패")
+                    raise
+
+            elif status in (401, 403):
+                if api_key.startswith("AQ."):
+                    logger.error(
+                        f"[recommend][DIAG] 인증 실패 status={status} (AQ. OAuth 토큰) — "
+                        "AQ. 토큰은 약 1시간 후 만료됩니다. "
+                        "서버 재시작 또는 Render 환경변수에 새 토큰을 등록하세요."
+                    )
+                else:
+                    logger.error(
+                        f"[recommend][DIAG] 인증 실패 status={status} — "
+                        "API 키가 잘못되었거나 비활성화됨. Render 환경변수 GOOGLE_API_KEY 재확인 필요"
+                    )
+                raise
+
+            elif status == 404:
+                logger.error(
+                    f"[recommend][DIAG] 모델 없음 status=404 model={model_name} — "
+                    "모델명 오타 또는 해당 리전에서 미지원"
+                )
+                raise
+
             else:
                 raise
 
-    raw = response.text.strip()
-    logger.info(f"[recommend] Gemini 원본 응답 길이={len(raw)}")
+    if response is None:
+        raise RuntimeError("Gemini 응답 없음 — 모든 재시도 실패")
+
+    # ── 응답 원문 로그 ───────────────────────────────────────────────
+    raw = response.text.strip() if response.text else ""
+    logger.info(
+        f"[recommend] Gemini 응답 원문 length={len(raw)} "
+        f"preview={raw[:300]!r}"
+    )
 
     if raw.startswith("```"):
         raw = raw.split("```")[1]
