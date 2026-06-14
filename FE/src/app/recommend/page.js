@@ -193,7 +193,7 @@ export default function RecommendPage() {
                   <label className="label">도시 이름</label>
                   <input
                     type="text"
-                    placeholder="예: 서울, 강남구, 해운대구, 부산, 제주"
+                    placeholder="예: 서울, 부산, 제주"
                     className="input-field"
                     value={city}
                     onChange={(e) => setCity(e.target.value)}
@@ -320,7 +320,7 @@ export default function RecommendPage() {
                 <label className="label">도시 이름</label>
                 <input
                   type="text"
-                  placeholder="예: 서울, 강남구, 해운대구, 부산, 제주"
+                  placeholder="예: 서울, 부산, 제주"
                   className="input-field"
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
